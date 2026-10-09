@@ -70,21 +70,6 @@ To move to a new computer, copy that folder across.
 
 **Pearson MyLab Math**: MyLab has no calendar feed. On its assignments page copy the table, then in TaskBoard open Settings, then Pearson MyLab, and click **Paste from clipboard and sync**. It adds new assignments, follows date changes, and marks assignments done once they have a score. Run it again whenever dates change.
 
-## Building a release
-
-Releases are built automatically by GitHub Actions (`.github/workflows/release.yml`) when you push a version tag:
-
-```bash
-npm version minor          # bumps package.json (and creates the tag), e.g. 0.3.0 to 0.4.0
-git push --follow-tags
-```
-
-After a few minutes the Release page has a Windows installer, a portable Windows exe, and a Linux AppImage. The version number shown next to the title comes from `package.json`.
-
-To build locally instead, run `npm run dist` (installers land in `release/`). Building the Windows version on Linux needs Wine, so letting GitHub Actions do it is simpler. A macOS build needs a Mac, or add `macos-latest` to the workflow.
-
-Because this is a private repository, only people with access to it can download releases.
-
 ## Project layout
 
 - `electron/` window creation, saving data, fetching calendar feeds
