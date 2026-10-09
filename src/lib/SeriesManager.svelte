@@ -103,7 +103,7 @@
     {/if}
 
     {#each db.series as s (s.id)}
-      <div class="series" style:--c={s.color || '#3a4154'}>
+      <div class="series" style:--c={s.color || 'var(--neutral)'}>
         <div class="info">
           <strong>{s.title}</strong>
           <span class="muted">{describeSeries(s)}</span>
@@ -200,7 +200,7 @@
   .num { width: 72px; }
   .pushrow { gap: 10px; }
   .series {
-    --c: #3a4154;
+    --c: var(--neutral);
     display: flex;
     justify-content: space-between;
     align-items: center;

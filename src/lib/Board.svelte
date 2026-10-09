@@ -1,7 +1,7 @@
 <script>
   import {
     db, ui, currentBoard, addTask, moveTask, addColumn, removeColumn, addBoard,
-    matchesFilter, accentOf, tagById, today, showsOnBoard
+    matchesFilter, accentOf, tagById, today, showsOnBoard, tagTask, setTaskDone
   } from './db.svelte.js';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
@@ -23,6 +23,12 @@
   let drafts = $state({});
   let newColumn = $state('');
   let newBoard = $state('');
+  let tagOver = $state(null);
+
+  const dragTag = $derived(db.tags.find((x) => x.id === ui.dragTagId));
+  $effect(() => {
+    if (!ui.dragTagId) tagOver = null;
+  });
 
   function quickAdd(col) {
     const title = (drafts[col.id] ?? '').trim();
@@ -42,11 +48,25 @@
     overCard = null;
   }
   function cardOver(e, t) {
+    if (ui.dragTagId) {
+      e.preventDefault();
+      e.stopPropagation();
+      tagOver = t.id;
+      return;
+    }
     if (!dragId) return;
     e.preventDefault();
     e.stopPropagation();
     overCol = t.columnId;
     overCard = t.id;
+  }
+  // A tag dragged from the top bar and dropped on a card. (Card drags are handled by the column.)
+  function dropOnCard(e, t) {
+    if (!ui.dragTagId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    tagTask(t, ui.dragTagId);
+    ui.dragTagId = null;
   }
   function colOver(e, col) {
     if (!dragId) return;
@@ -122,15 +142,23 @@
                 class:done={t.done}
                 class:dragging={dragId === t.id}
                 class:before={dragId && overCard === t.id && dragId !== t.id}
-                style:--c={accentOf(t) || '#3a4154'}
+                class:tag-target={ui.dragTagId && tagOver === t.id}
+                style:--c={accentOf(t) || 'var(--neutral)'}
+                style:--tc={dragTag?.color ?? 'var(--accent)'}
                 draggable="true"
                 ondragstart={(e) => dragStart(e, t)}
                 ondragend={dragEnd}
                 ondragover={(e) => cardOver(e, t)}
+                ondrop={(e) => dropOnCard(e, t)}
                 onclick={() => (ui.editingId = t.id)}
                 animate:flip={{ duration: 160 }}
                 in:fly={{ y: 8, duration: 140 }}>
-                <input type="checkbox" aria-label="Done" bind:checked={t.done} onclick={(e) => e.stopPropagation()} />
+                <input
+                  type="checkbox"
+                  aria-label="Done"
+                  checked={t.done}
+                  onchange={(e) => setTaskDone(t, e.currentTarget.checked)}
+                  onclick={(e) => e.stopPropagation()} />
                 <div class="body">
                   <span class="title">{t.title || 'Untitled'}</span>
                   {#if t.due || t.tagIds.length}
@@ -201,7 +229,7 @@
   .quick { margin: 6px 10px 10px; }
 
   .card {
-    --c: #3a4154;
+    --c: var(--neutral);
     position: relative;
     display: flex;
     gap: 10px;
@@ -217,6 +245,7 @@
   .card:hover { border-color: color-mix(in srgb, var(--c) 55%, var(--border)); }
   .card.dragging { opacity: 0.4; }
   .card.before { box-shadow: 0 -3px 0 0 var(--accent); }
+  .card.tag-target { outline: 2px solid var(--tc, var(--accent)); outline-offset: 1px; }
   .card.done .title { text-decoration: line-through; color: var(--muted); }
 
   .body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }

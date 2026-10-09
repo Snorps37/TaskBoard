@@ -1,35 +1,94 @@
 # TaskBoard
 
-Kanban boards with an embedded calendar, built with Electron + Svelte 5. Dark by default.
+Trello-style boards with a calendar built in. Click a day to see its to-do list, double-click it to open that day as a full board. Dark by default, with themes, custom colors, tags, and repeating tasks.
 
-## Run it (Arch Linux)
+![TaskBoard calendar view](docs/screenshot.png)
+
+## Features
+
+- **Boards** with draggable cards and your own columns. Checking a task moves it to the **Done** column (a column named Done, Complete, or Finished); unchecking puts it back.
+- **Calendar** with every task on its due date. Click a day for its checklist, double-click for that day's board. The app can open straight to today's board.
+- **Colors and tags**: any color per task, saved colors you can reuse, and your own tags. Drag a tag from the top bar onto a task to apply it.
+- **Repeating tasks**: every day, every N days, certain weekdays, or a rotation (like a workout cycle). Missed one? Push the whole schedule back a day.
+- **Themes**: pick a preset (Midnight, Nord, Dracula, Gruvbox, Catppuccin, Tokyo Night, and more, including light ones) or set your own four colors. Settings, then Preferences.
+- **Schoology import**: assignments from your Schoology calendar link (read-only, updates when teachers change dates).
+- **Pearson MyLab import**: copy the assignment table from MyLab and click sync; re-run it whenever dates change.
+- **Mouse back button** steps back: closes a dialog, returns from a day's board to the calendar, and so on.
+
+## Install
+
+### Windows (easiest)
+
+1. Open the **Releases** page of this repository and download `TaskBoard Setup x.y.z.exe` (installer) or `TaskBoard x.y.z.exe` (portable, no install).
+2. Run it. Windows may show a "Windows protected your PC" screen because the app isn't code-signed. Click **More info**, then **Run anyway**.
+
+### From source (Windows, macOS, or Linux)
+
+You need [Node.js](https://nodejs.org) 20 or newer.
 
 ```bash
-sudo pacman -S nodejs npm git
 npm install
-npm run dev      # hot reload while you work
-npm start        # build once and run the production bundle
+npm run dev      # development, reloads as you edit
+npm start        # build once and run
 ```
 
-Your data is a single JSON file at `~/.config/taskboard/data.json`.
+### Arch Linux (and other distros with a system Electron)
 
-## If the window is blank on NVIDIA + Wayland
-
-Try one of these before anything else:
+Installing Electron through npm can fail on some setups. The system package works well:
 
 ```bash
-ELECTRON_OZONE_PLATFORM_HINT=x11 npm run dev      # run through XWayland
-npm run dev -- --disable-gpu                      # software rendering (last resort)
+sudo pacman -S electron nodejs npm
+npm install
+npm run dev:system     # development
+npm run start:system   # build once and run
 ```
 
-If Electron complains about the sandbox, `--no-sandbox` works but is a last resort.
+Add TaskBoard to your app launcher, with its icon:
 
-## Layout
+```bash
+sh scripts/install-linux.sh
+```
 
-- `electron/main.cjs` window creation and reading/writing `data.json`
-- `electron/preload.cjs` the small bridge the UI uses to load and save
-- `src/lib/db.svelte.js` all state and data helpers (boards, tasks, tags, saved colors)
-- `src/lib/Board.svelte`, `Calendar.svelte`, `DayPanel.svelte`, `TaskModal.svelte`, `TagManager.svelte`, `ColorPicker.svelte`
-- `src/app.css` theme colors and shared styles
+On Hyprland the launcher and dock match a window to its icon by window class. TaskBoard uses the class `taskboard`. If the icon is still missing, check the class with `hyprctl clients | grep -i -A3 taskboard` and make sure `StartupWMClass` in `~/.local/share/applications/taskboard.desktop` matches it.
 
-`npm run dev:web` runs the UI in a normal browser tab (saves to localStorage) if you want to use browser devtools.
+## Where your data lives
+
+| Platform | Folder |
+| --- | --- |
+| Linux | `~/.config/taskboard/` |
+| Windows | `%APPDATA%\taskboard\` |
+| macOS | `~/Library/Application Support/taskboard/` |
+
+- `data.json` has your boards, tasks, tags, and repeating tasks.
+- `settings.json` has your theme and sync settings, including your private Schoology calendar link. Don't share or commit it.
+
+To move to a new computer, copy that folder across.
+
+## Connecting your classes
+
+**Schoology**: in Schoology open Settings, find "Share your Schoology Calendar", enable it, and copy the link. In TaskBoard open Settings, then Schoology, and paste it. It syncs when the app opens and hourly while it's running. Your own edits (done, colors, tags, notes) are never overwritten.
+
+**Pearson MyLab Math**: MyLab has no calendar feed. On its assignments page copy the table, then in TaskBoard open Settings, then Pearson MyLab, and click **Paste from clipboard and sync**. It adds new assignments, follows date changes, and marks assignments done once they have a score. Run it again whenever dates change.
+
+## Building a release
+
+Releases are built automatically by GitHub Actions (`.github/workflows/release.yml`) when you push a version tag:
+
+```bash
+npm version minor          # bumps package.json (and creates the tag), e.g. 0.3.0 to 0.4.0
+git push --follow-tags
+```
+
+After a few minutes the Release page has a Windows installer, a portable Windows exe, and a Linux AppImage. The version number shown next to the title comes from `package.json`.
+
+To build locally instead, run `npm run dist` (installers land in `release/`). Building the Windows version on Linux needs Wine, so letting GitHub Actions do it is simpler. A macOS build needs a Mac, or add `macos-latest` to the workflow.
+
+Because this is a private repository, only people with access to it can download releases.
+
+## Project layout
+
+- `electron/` window creation, saving data, fetching calendar feeds
+- `src/lib/db.svelte.js` all app state and logic (boards, tasks, repeating tasks, imports)
+- `src/lib/*.svelte` the screens: `Board`, `Calendar`, `DayPanel`, `TaskModal`, `SeriesManager`, `PreferencesModal`, and so on
+- `src/lib/theme.js` theme presets; `src/app.css` the derived color palette
+- `build/` app icon; `docs/` README screenshot; `scripts/` Linux launcher installer

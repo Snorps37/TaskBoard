@@ -85,7 +85,7 @@
             <span class="num">{c.date.getDate()}</span>
             <span class="items">
               {#each list.slice(0, 3) as t (t.id)}
-                <span class="pill" class:done={t.done} style:--c={accentOf(t) || '#59627a'}>{t.title || 'Untitled'}</span>
+                <span class="pill" class:done={t.done} style:--c={accentOf(t) || 'var(--neutral)'}>{t.title || 'Untitled'}</span>
               {/each}
               {#if list.length > 3}<span class="more">+{list.length - 3} more</span>{/if}
             </span>
@@ -123,12 +123,12 @@
   .cell:hover { background: var(--surface-2); }
   .cell.muted { opacity: 0.45; }
   .cell.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-  .cell.today .num { background: var(--accent); color: #0b0d16; }
+  .cell.today .num { background: var(--accent); color: var(--on-accent); }
 
   .num { align-self: flex-start; min-width: 22px; height: 22px; padding: 0 5px; display: grid; place-items: center; border-radius: 999px; font-size: 12px; font-weight: 600; }
   .items { display: flex; flex-direction: column; gap: 3px; min-height: 0; }
   .pill {
-    --c: #59627a;
+    --c: var(--neutral);
     padding: 1px 6px;
     font-size: 11px;
     line-height: 1.4;

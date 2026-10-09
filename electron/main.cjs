@@ -1,6 +1,13 @@
-const { app, BrowserWindow, ipcMain, shell, net } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, net, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// Same data folder in development and in installed builds (Linux: ~/.config/taskboard,
+// Windows: %APPDATA%\taskboard, macOS: ~/Library/Application Support/taskboard).
+app.setName('taskboard');
+app.setPath('userData', path.join(app.getPath('appData'), 'taskboard'));
+// Lets Linux desktops match the window to taskboard.desktop (and so to its icon).
+if (process.platform === 'linux' && typeof app.setDesktopName === 'function') app.setDesktopName('taskboard.desktop');
 
 // Use native Wayland when available, fall back to X11 otherwise.
 app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
@@ -18,6 +25,7 @@ function createWindow() {
     backgroundColor: '#0d0f14',
     autoHideMenuBar: true,
     title: 'TaskBoard',
+    icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -88,6 +96,8 @@ ipcMain.handle('ics:fetch', async (_event, rawUrl) => {
     clearTimeout(timer);
   }
 });
+
+ipcMain.handle('clipboard:read', () => clipboard.readText());
 
 app.whenReady().then(createWindow);
 

@@ -1,4 +1,5 @@
 import { parseIcs } from './ics.js';
+import { parseMylab } from './mylab.js';
 
 // All app state lives here. Components import `db` and `ui` and mutate them directly;
 // App.svelte watches `db` and saves it to disk whenever it changes.
@@ -13,7 +14,10 @@ export const ui = $state({
   selectedDay: null,
   dayBoard: null,
   showSeries: false,
-  showSchoology: false
+  showSchoology: false,
+  showMylab: false,
+  showPrefs: false,
+  dragTagId: null
 });
 
 export const db = $state({
@@ -33,6 +37,7 @@ export const storage = window.api ?? {
   save: async (json) => localStorage.setItem('taskboard', json),
   loadSettings: async () => localStorage.getItem('taskboard-settings'),
   saveSettings: async (json) => localStorage.setItem('taskboard-settings', json),
+  readClipboard: async () => navigator.clipboard.readText(),
   fetchIcs: async (url) => {
     const res = await fetch(url.replace(/^webcal:/i, 'https:'));
     if (!res.ok) throw new Error(`The server answered with status ${res.status}`);
@@ -136,15 +141,52 @@ export function removeTask(id) {
   db.tasks.splice(i, 1);
 }
 
+// A column named Done (or Complete / Finished) is where checked tasks go.
+const isDoneColumn = (c) => /^(done|complete|completed|finished)$/i.test(c.name.trim());
+const doneColumnOf = (columnId) =>
+  db.boards.find((b) => b.columns.some((c) => c.id === columnId))?.columns.find(isDoneColumn) ?? null;
+
 // Moves a task into a column, placed before `beforeId` (or at the end).
+// Moving into the Done column checks it off; moving out of Done unchecks it.
 export function moveTask(id, columnId, beforeId = null) {
   const i = db.tasks.findIndex((t) => t.id === id);
   if (i < 0) return;
   const [task] = db.tasks.splice(i, 1);
+  const from = task.columnId;
   task.columnId = columnId;
   const j = beforeId ? db.tasks.findIndex((t) => t.id === beforeId) : -1;
   if (j >= 0) db.tasks.splice(j, 0, task);
   else db.tasks.push(task);
+
+  const doneCol = doneColumnOf(columnId);
+  if (doneCol && columnId === doneCol.id && from !== columnId) {
+    task.prevColumnId = from;
+    task.done = true;
+  } else if (doneCol && from === doneCol.id && columnId !== doneCol.id) {
+    task.done = false;
+  }
+}
+
+// Checks or unchecks a task. Checking moves it to the Done column; unchecking puts it back where it came from.
+export function setTaskDone(task, value) {
+  const doneCol = doneColumnOf(task.columnId);
+  if (!doneCol) {
+    task.done = value;
+    return;
+  }
+  if (value) {
+    if (task.columnId !== doneCol.id) moveTask(task.id, doneCol.id);
+    else task.done = true;
+  } else {
+    task.done = false;
+    if (task.columnId === doneCol.id) {
+      const board = db.boards.find((b) => b.columns.some((c) => c.id === doneCol.id));
+      const back =
+        board.columns.find((c) => c.id === task.prevColumnId && c.id !== doneCol.id) ??
+        board.columns.find((c) => c.id !== doneCol.id);
+      if (back) moveTask(task.id, back.id);
+    }
+  }
 }
 
 export const matchesFilter = (t) => !ui.filterTagId || t.tagIds.includes(ui.filterTagId);
@@ -173,6 +215,11 @@ export function removeTag(id) {
     if (k >= 0) t.tagIds.splice(k, 1);
   }
   if (ui.filterTagId === id) ui.filterTagId = null;
+}
+
+// Adds a tag to a task (used when you drag a tag onto it).
+export function tagTask(task, tagId) {
+  if (!task.tagIds.includes(tagId)) task.tagIds.push(tagId);
 }
 
 export function toggleTag(task, tagId) {
@@ -303,7 +350,16 @@ export function removeSeries(id) {
 }
 
 // ---- settings (kept in a separate file from the task data) ----
-export const settings = $state({ schoologyUrl: '', includeEvents: false, lastSync: '' });
+export const settings = $state({
+  loaded: false,
+  schoologyUrl: '',
+  includeEvents: false,
+  lastSync: '',
+  mylabClass: 'AP Calc',
+  theme: 'midnight',
+  customTheme: { bg: '#0d0f14', surface: '#14171e', text: '#e8eaf0', accent: '#8b9cff' },
+  startup: 'today' // 'today' (today's board) | 'board' | 'calendar'
+});
 export const sync = $state({ busy: false, message: '' });
 
 export async function loadSettings() {
@@ -313,8 +369,12 @@ export async function loadSettings() {
   } catch {
     // keep defaults
   }
+  settings.loaded = true;
 }
-export const saveSettings = () => storage.saveSettings(JSON.stringify(settings));
+export function saveSettings() {
+  const { loaded, ...toSave } = settings;
+  return storage.saveSettings(JSON.stringify(toSave));
+}
 
 // ---- Schoology import (read-only, from the calendar feed) ----
 function findOrCreateTag(name) {
@@ -383,5 +443,81 @@ export async function syncSchoology() {
     sync.message = 'Could not sync: ' + msg;
   } finally {
     sync.busy = false;
+  }
+}
+
+// ---- Pearson MyLab Math import (paste the assignment table; run again to sync) ----
+export const mylab = $state({ message: '' });
+
+const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+function mylabNotes(r) {
+  return [r.type, r.time ? `Due ${r.time}` : '', r.limit ? `Time limit ${r.limit} min` : ''].filter(Boolean).join('. ');
+}
+
+// Adds new assignments, follows date changes, and ticks off ones that now have a score.
+// Skips assignments that already have a score, or were due more than two weeks ago.
+function applyMylab(records, className) {
+  const column = currentBoard()?.columns[0];
+  if (!column) return { added: 0, updated: 0, done: 0 };
+  const cutoff = addDays(today(), -14);
+  let tag = null;
+  let added = 0;
+  let updated = 0;
+  let done = 0;
+
+  for (const r of records) {
+    const id = `mylab:${slug(className)}:${r.key}`;
+    if (db.dismissed.includes(id)) continue;
+
+    const existing = db.tasks.find((t) => t.externalId === id);
+    if (existing) {
+      if (existing.due === existing.sync?.due && existing.due !== r.due) {
+        existing.due = r.due;
+        updated++;
+      }
+      if (r.scored && !existing.sync?.scored && !existing.done) {
+        setTaskDone(existing, true);
+        done++;
+      }
+      existing.sync = { due: r.due, scored: r.scored };
+      continue;
+    }
+
+    if (r.scored || r.due < cutoff) continue;
+    tag ??= findOrCreateTag(className);
+    addTask({
+      title: `${className}: ${r.title}`,
+      notes: mylabNotes(r),
+      due: r.due,
+      columnId: column.id,
+      tagIds: [tag.id],
+      externalId: id,
+      sync: { due: r.due, scored: r.scored }
+    });
+    added++;
+  }
+  return { added, updated, done };
+}
+
+export function syncMylabText(text) {
+  const className = (settings.mylabClass || '').trim() || 'AP Calc';
+  const records = parseMylab(text ?? '');
+  if (!records.length) {
+    mylab.message = "Couldn't find any assignments in that text. Copy the assignment table from MyLab and try again.";
+    return;
+  }
+  const { added, updated, done } = applyMylab(records, className);
+  mylab.message =
+    added || updated || done
+      ? `${added} new, ${updated} date change${updated === 1 ? '' : 's'}, ${done} marked done`
+      : 'Up to date';
+}
+
+export async function syncMylabClipboard() {
+  try {
+    syncMylabText(await storage.readClipboard());
+  } catch (e) {
+    mylab.message = "Couldn't read the clipboard. Paste the text into the box instead.";
   }
 }

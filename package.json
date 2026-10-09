@@ -1,24 +1,38 @@
 {
   "name": "taskboard",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Kanban boards with an embedded calendar",
+  "author": "TaskBoard",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV=1 electron .\"",
     "dev:web": "vite",
     "build": "vite build",
-    "start": "vite build && electron ."
+    "start": "vite build && electron .",
+    "dev:system": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV=1 /usr/bin/electron . --class=taskboard\"",
+    "start:system": "vite build && /usr/bin/electron . --class=taskboard",
+    "dist": "vite build && electron-builder",
+    "dist:win": "vite build && electron-builder --win",
+    "dist:linux": "vite build && electron-builder --linux"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "concurrently": "^9.0.0",
     "cross-env": "^7.0.3",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
     "svelte": "^5.0.0",
     "vite": "^5.4.0",
     "wait-on": "^8.0.0"
   },
-  "allowScripts": {
-    "electron@33.4.11": true,
-    "esbuild@0.21.5": true
+  "build": {
+    "appId": "com.taskboard.app",
+    "productName": "TaskBoard",
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["dist/**/*", "electron/**/*", "build/icon.png", "package.json"],
+    "win": { "target": ["nsis", "portable"], "icon": "build/icon.ico" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+    "linux": { "target": ["AppImage"], "category": "Office", "icon": "build/icon.png" },
+    "mac": { "target": ["dmg"], "category": "public.app-category.productivity", "icon": "build/icon.png" }
   }
 }

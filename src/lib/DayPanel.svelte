@@ -1,5 +1,5 @@
 <script>
-  import { db, ui, addTask, currentBoard, matchesFilter, accentOf, tagById } from './db.svelte.js';
+  import { db, ui, addTask, currentBoard, matchesFilter, accentOf, tagById, tagTask, setTaskDone } from './db.svelte.js';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
 
@@ -11,6 +11,25 @@
   const doneCount = $derived(items.filter((t) => t.done).length);
 
   let title = $state('');
+  let tagOver = $state(null);
+
+  const dragTag = $derived(db.tags.find((x) => x.id === ui.dragTagId));
+  $effect(() => {
+    if (!ui.dragTagId) tagOver = null;
+  });
+
+  // Drop a tag dragged from the top bar onto a task.
+  function overItem(e, t) {
+    if (!ui.dragTagId) return;
+    e.preventDefault();
+    tagOver = t.id;
+  }
+  function dropItem(e, t) {
+    if (!ui.dragTagId) return;
+    e.preventDefault();
+    tagTask(t, ui.dragTagId);
+    ui.dragTagId = null;
+  }
 
   function add() {
     const text = title.trim();
@@ -40,8 +59,16 @@
 
   <ul>
     {#each items as t (t.id)}
-      <li style:--c={accentOf(t) || '#3a4154'} animate:flip={{ duration: 150 }} in:fly={{ y: 6, duration: 130 }}>
-        <input type="checkbox" aria-label="Done" bind:checked={t.done} />
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <li
+        class:tag-target={ui.dragTagId && tagOver === t.id}
+        style:--c={accentOf(t) || 'var(--neutral)'}
+        style:--tc={dragTag?.color ?? 'var(--accent)'}
+        ondragover={(e) => overItem(e, t)}
+        ondrop={(e) => dropItem(e, t)}
+        animate:flip={{ duration: 150 }}
+        in:fly={{ y: 6, duration: 130 }}>
+        <input type="checkbox" aria-label="Done" checked={t.done} onchange={(e) => setTaskDone(t, e.currentTarget.checked)} />
         <button class="task" class:done={t.done} onclick={() => (ui.editingId = t.id)}>
           <span>{t.title || 'Untitled'}</span>
           {#if t.tagIds.length}
@@ -83,7 +110,7 @@
 
   ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
   li {
-    --c: #3a4154;
+    --c: var(--neutral);
     display: flex;
     gap: 10px;
     align-items: flex-start;
@@ -93,6 +120,7 @@
     border-left: 3px solid var(--c);
     border-radius: 10px;
   }
+  li.tag-target { outline: 2px solid var(--tc, var(--accent)); outline-offset: 1px; }
   .task { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 0; text-align: left; background: none; border: 0; border-radius: 0; overflow-wrap: anywhere; }
   .task:hover { background: none; }
   .task.done > span:first-child { text-decoration: line-through; color: var(--muted); }

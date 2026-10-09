@@ -1,5 +1,6 @@
 <script>
-  import { db, ui, init, storage, loadSettings, syncSchoology } from './lib/db.svelte.js';
+  import { db, ui, settings, init, storage, loadSettings, syncSchoology, today } from './lib/db.svelte.js';
+  import { applyTheme, resolveTheme } from './lib/theme.js';
   import { onMount, tick, untrack } from 'svelte';
   import Board from './lib/Board.svelte';
   import Calendar from './lib/Calendar.svelte';
@@ -7,15 +8,25 @@
   import TagManager from './lib/TagManager.svelte';
   import SeriesManager from './lib/SeriesManager.svelte';
   import SchoologyModal from './lib/SchoologyModal.svelte';
+  import MylabModal from './lib/MylabModal.svelte';
+  import PreferencesModal from './lib/PreferencesModal.svelte';
+  import { VERSION } from './version.js';
   import { fade, fly } from 'svelte/transition';
 
   let timer;
   let pending = null;
 
-  // Load data, then pull in Schoology (if connected) now and once an hour while the app is open.
-  init().then(async () => {
+  // Start-up: settings first (theme, start page), then your data, then open the start page and sync Schoology.
+  (async () => {
     await loadSettings();
+    await init();
+    openStartPage();
     syncSchoology();
+  })();
+
+  // Apply the chosen theme whenever it changes.
+  $effect(() => {
+    if (settings.loaded) applyTheme(resolveTheme(settings));
   });
   onMount(() => {
     const id = setInterval(syncSchoology, 60 * 60 * 1000);
@@ -42,8 +53,10 @@
   let menuOpen = $state(false);
   let menuEl;
   const menuItems = [
+    { label: 'Preferences', open: () => (ui.showPrefs = true) },
     { label: 'Repeating tasks', open: () => (ui.showSeries = true) },
-    { label: 'Schoology', open: () => (ui.showSchoology = true) }
+    { label: 'Schoology', open: () => (ui.showSchoology = true) },
+    { label: 'Pearson MyLab', open: () => (ui.showMylab = true) }
   ];
   function pick(item) {
     menuOpen = false;
@@ -76,6 +89,8 @@
     else if (ui.showTags) ui.showTags = false;
     else if (ui.showSeries) ui.showSeries = false;
     else if (ui.showSchoology) ui.showSchoology = false;
+    else if (ui.showMylab) ui.showMylab = false;
+    else if (ui.showPrefs) ui.showPrefs = false;
     else if (menuOpen) menuOpen = false;
     else if (ui.view === 'calendar' && !ui.dayBoard && ui.selectedDay) ui.selectedDay = null;
     else if (stack.length) {
@@ -85,6 +100,22 @@
       ui.dayBoard = prev.dayBoard;
       tick().then(() => (restoring = false));
     }
+  }
+
+  // Which page the app opens on (Preferences, "When the app opens").
+  // "Today's board" starts on today's board with the calendar one step back.
+  function openStartPage() {
+    restoring = true;
+    if (settings.startup === 'board') {
+      ui.view = 'board';
+    } else if (settings.startup === 'calendar') {
+      ui.view = 'calendar';
+    } else {
+      ui.view = 'calendar';
+      ui.dayBoard = today();
+      stack.push({ view: 'calendar', dayBoard: null });
+    }
+    tick().then(() => (restoring = false));
   }
 
   function onMouseUp(e) {
@@ -105,7 +136,10 @@
 {#if db.loaded}
   <div class="app">
     <header>
-      <div class="brand">TaskBoard</div>
+      <div class="brand">
+        <span>TaskBoard</span>
+        <span class="version">v{VERSION}</span>
+      </div>
       <nav class="tabs">
         <button class:active={ui.view === 'board'} onclick={() => (ui.view = 'board')}>Board</button>
         <button class:active={ui.view === 'calendar'} onclick={() => { ui.view = 'calendar'; ui.dayBoard = null; }}>Calendar</button>
@@ -117,7 +151,14 @@
             class="chip"
             class:off={ui.filterTagId && ui.filterTagId !== t.id}
             style:--c={t.color}
-            title="Show only {t.name}"
+            title="Click to show only {t.name}. Drag onto a task to tag it."
+            draggable="true"
+            ondragstart={(e) => {
+              ui.dragTagId = t.id;
+              e.dataTransfer.effectAllowed = 'copy';
+              e.dataTransfer.setData('text/plain', 'tag:' + t.id);
+            }}
+            ondragend={() => (ui.dragTagId = null)}
             onclick={() => (ui.filterTagId = ui.filterTagId === t.id ? null : t.id)}>{t.name}</button>
         {/each}
       </div>
@@ -150,6 +191,8 @@
     {#if ui.showTags}<TagManager />{/if}
     {#if ui.showSeries}<SeriesManager />{/if}
     {#if ui.showSchoology}<SchoologyModal />{/if}
+    {#if ui.showMylab}<MylabModal />{/if}
+    {#if ui.showPrefs}<PreferencesModal />{/if}
   </div>
 {/if}
 
@@ -164,7 +207,8 @@
     padding: 0 24px;
     border-bottom: 1px solid var(--border);
   }
-  .brand { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+  .brand { display: flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+  .version { font-size: 11px; font-weight: 400; color: var(--muted); opacity: 0.6; }
   .tabs { display: flex; gap: 4px; padding: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
   .tabs button { border: none; background: transparent; padding: 5px 14px; border-radius: 7px; color: var(--muted); }
   .tabs button:hover { background: var(--surface-2); color: var(--text); }

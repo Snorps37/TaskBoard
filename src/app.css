@@ -1,13 +1,20 @@
 :root {
+  /* The four base colors (a theme sets these) */
   --bg: #0d0f14;
   --surface: #14171e;
-  --surface-2: #1b1f29;
-  --surface-3: #252a38;
-  --border: #272c3a;
   --text: #e8eaf0;
-  --muted: #8a91a4;
   --accent: #8b9cff;
   --danger: #ff6b7a;
+  --on-accent: #0b0d16;
+  --chip-mix: white;
+
+  /* Everything else is derived from them */
+  --surface-2: color-mix(in srgb, var(--surface), var(--text) 5%);
+  --surface-3: color-mix(in srgb, var(--surface), var(--text) 10%);
+  --border: color-mix(in srgb, var(--surface), var(--text) 14%);
+  --border-strong: color-mix(in srgb, var(--surface), var(--text) 22%);
+  --muted: color-mix(in srgb, var(--text) 52%, var(--bg));
+  --neutral: color-mix(in srgb, var(--text) 22%, var(--bg));
   --fast: 140ms;
   color-scheme: dark;
 }
@@ -31,11 +38,11 @@ button {
   cursor: pointer;
   transition: background var(--fast), border-color var(--fast), transform var(--fast), opacity var(--fast);
 }
-button:hover { background: var(--surface-3); border-color: #353c4f; }
+button:hover { background: var(--surface-3); border-color: var(--border-strong); }
 button:active { transform: scale(0.97); }
 button:disabled { opacity: 0.45; cursor: default; }
 button:disabled:active { transform: none; }
-button.primary { background: var(--accent); border-color: transparent; color: #0b0d16; font-weight: 600; }
+button.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); font-weight: 600; }
 button.primary:hover { filter: brightness(1.08); }
 button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
 button.ghost:hover { background: var(--surface-2); color: var(--text); }
@@ -59,8 +66,8 @@ textarea { resize: vertical; }
 input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-thumb:hover { background: #3a4156; background-clip: content-box; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); background-clip: content-box; }
 
 /* Shared pieces used across components */
 .chip {
@@ -73,7 +80,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   line-height: 1.6;
   border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
   background: color-mix(in srgb, var(--c) 16%, transparent);
-  color: color-mix(in srgb, var(--c) 65%, white);
+  color: color-mix(in srgb, var(--c) 65%, var(--chip-mix, white));
 }
 button.chip { cursor: pointer; }
 button.chip:hover { background: color-mix(in srgb, var(--c) 28%, transparent); border-color: color-mix(in srgb, var(--c) 65%, transparent); }

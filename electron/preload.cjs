@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld('api', {
   save: (json) => ipcRenderer.invoke('db:save', json),
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   saveSettings: (json) => ipcRenderer.invoke('settings:save', json),
-  fetchIcs: (url) => ipcRenderer.invoke('ics:fetch', url)
+  fetchIcs: (url) => ipcRenderer.invoke('ics:fetch', url),
+  readClipboard: () => ipcRenderer.invoke('clipboard:read')
 });
