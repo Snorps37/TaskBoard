@@ -31,17 +31,36 @@ export const db = $state({
   currentBoardId: null
 });
 
-// Electron exposes window.api. In a plain browser (npm run dev:web) fall back to localStorage.
+// Electron exposes window.api. In a plain browser (the web version) fall back to localStorage.
+export const isDesktop = !!window.api;
 export const storage = window.api ?? {
   load: async () => localStorage.getItem('taskboard'),
   save: async (json) => localStorage.setItem('taskboard', json),
   loadSettings: async () => localStorage.getItem('taskboard-settings'),
   saveSettings: async (json) => localStorage.setItem('taskboard-settings', json),
   readClipboard: async () => navigator.clipboard.readText(),
+  // In a browser: try the link directly; if the browser blocks it (CORS), go through your proxy if you set one.
   fetchIcs: async (url) => {
-    const res = await fetch(url.replace(/^webcal:/i, 'https:'));
-    if (!res.ok) throw new Error(`The server answered with status ${res.status}`);
-    return res.text();
+    const target = url.trim().replace(/^webcal:/i, 'https:');
+    const get = async (u) => {
+      const res = await fetch(u);
+      if (!res.ok) throw new Error(`The server answered with status ${res.status}`);
+      const text = await res.text();
+      if (!text.includes('BEGIN:VCALENDAR')) throw new Error('That link did not return a calendar feed');
+      return text;
+    };
+    try {
+      return await get(target);
+    } catch (e) {
+      if (!(e instanceof TypeError)) throw e; // a blocked or failed request, not an HTTP error
+      const proxy = (settings.proxyUrl || '').trim();
+      if (!proxy) {
+        throw new Error(
+          "The browser blocked the request (Schoology doesn't let websites read the feed directly). Import the downloaded calendar file instead, or set a proxy address."
+        );
+      }
+      return get(`${proxy}${proxy.includes('?') ? '&' : '?'}url=${encodeURIComponent(target)}`);
+    }
   }
 };
 
@@ -369,6 +388,7 @@ export const settings = $state({
   schoologyUrl: '',
   includeEvents: false,
   lastSync: '',
+  proxyUrl: '', // web version only: address of your own proxy for the Schoology feed
   mylabClass: 'AP Calc',
   theme: 'midnight',
   customThemes: [], // your saved themes: [{ id, name, bg, surface, text, accent }]
@@ -455,14 +475,27 @@ function applySchoology(events) {
   return { added, updated };
 }
 
+function finishSchoology(text) {
+  const { added, updated } = applySchoology(parseIcs(text));
+  settings.lastSync = new Date().toISOString();
+  sync.message = added || updated ? `${added} new, ${updated} updated` : 'Up to date';
+}
+
+// Import a calendar (.ics) file you downloaded from Schoology. Run it again later to pick up changes.
+export async function importSchoologyFile(text) {
+  if (!text.includes('BEGIN:VCALENDAR')) {
+    sync.message = "Could not import: that file isn't a calendar (.ics) file.";
+    return;
+  }
+  finishSchoology(text);
+  await saveSettings();
+}
+
 export async function syncSchoology() {
   if (!db.loaded || !settings.schoologyUrl || sync.busy) return;
   sync.busy = true;
   try {
-    const text = await storage.fetchIcs(settings.schoologyUrl);
-    const { added, updated } = applySchoology(parseIcs(text));
-    settings.lastSync = new Date().toISOString();
-    sync.message = added || updated ? `${added} new, ${updated} updated` : 'Up to date';
+    finishSchoology(await storage.fetchIcs(settings.schoologyUrl));
     await saveSettings();
   } catch (e) {
     const msg = String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');

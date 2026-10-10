@@ -1,5 +1,5 @@
 <script>
-  import { ui, settings, sync, saveSettings, syncSchoology } from './db.svelte.js';
+  import { ui, settings, sync, saveSettings, syncSchoology, importSchoologyFile, isDesktop } from './db.svelte.js';
   import { fade, scale } from 'svelte/transition';
 
   let link = $state(settings.schoologyUrl);
@@ -16,6 +16,13 @@
     settings.schoologyUrl = link.trim();
     await saveSettings();
     await syncSchoology();
+  }
+  async function onFile(e) {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    await importSchoologyFile(await file.text());
+    input.value = '';
   }
   async function disconnect() {
     settings.schoologyUrl = '';
@@ -54,6 +61,17 @@
       <span>Also import school events, not just assignments</span>
     </label>
 
+    {#if !isDesktop}
+      <div class="field">
+        <span class="label">Proxy address (optional, advanced)</span>
+        <input placeholder="https://your-proxy.workers.dev" bind:value={settings.proxyUrl} onchange={saveSettings} />
+        <small>
+          Browsers may block reading the Schoology link directly. If syncing says so, either import the downloaded
+          calendar file below, or enter the address of a proxy you run (see docs/schoology-proxy.md).
+        </small>
+      </div>
+    {/if}
+
     <div class="row">
       <button class="primary" disabled={!link.trim() || sync.busy} onclick={connect}>
         {connected ? 'Save and sync' : 'Connect and sync'}
@@ -63,6 +81,14 @@
         <button class="ghost danger" onclick={disconnect}>Disconnect</button>
       {/if}
     </div>
+
+    {#if !isDesktop}
+      <div class="field">
+        <span class="label">Or import the downloaded calendar file</span>
+        <input type="file" accept=".ics,text/calendar" onchange={onFile} />
+        <small>In Schoology's calendar sharing settings use Download, then choose the file here. Import it again to pick up changes.</small>
+      </div>
+    {/if}
 
     <p class="status" class:bad={sync.message.startsWith('Could not')}>
       {#if sync.busy}Syncing...{:else if sync.message}{sync.message}{#if lastSync && !sync.message.startsWith('Could not')} (last sync {lastSync}){/if}{/if}
