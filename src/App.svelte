@@ -75,7 +75,9 @@
   $effect(() => {
     const cur = { view: ui.view, dayBoard: ui.dayBoard };
     untrack(() => {
-      if (!restoring && (cur.view !== last.view || cur.dayBoard !== last.dayBoard)) {
+      // Stepping from one day to another replaces the page, so Back leaves the day board in one step.
+      const dayToDay = cur.view === last.view && cur.dayBoard && last.dayBoard;
+      if (!restoring && !dayToDay && (cur.view !== last.view || cur.dayBoard !== last.dayBoard)) {
         stack.push(last);
         if (stack.length > 50) stack.shift();
       }

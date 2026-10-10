@@ -1,5 +1,5 @@
 <script>
-  import { ui, settings, saveSettings } from './db.svelte.js';
+  import { ui, settings, saveSettings, uid } from './db.svelte.js';
   import { PRESETS, resolveTheme } from './theme.js';
   import { fade, scale } from 'svelte/transition';
 
@@ -10,8 +10,8 @@
     ['accent', 'Accent']
   ];
 
-  const active = $derived(resolveTheme(settings));
-  const tiles = $derived([...PRESETS, { id: 'custom', name: 'Custom', ...settings.customTheme }]);
+  const tiles = $derived([...PRESETS, ...settings.customThemes]);
+  const current = $derived(resolveTheme(settings));
   const isHex = (v) => /^#[0-9a-f]{6}$/i.test(v);
 
   const close = () => (ui.showPrefs = false);
@@ -21,17 +21,28 @@
     saveSettings();
   }
 
-  // Editing any color starts from the theme you're on, then switches to the Custom theme.
   let saveTimer;
-  function setColor(key, value) {
-    if (settings.theme !== 'custom') {
-      const { bg, surface, text, accent, danger } = resolveTheme(settings);
-      settings.customTheme = { bg, surface, text, accent, danger };
-    }
-    settings.customTheme[key] = value;
-    settings.theme = 'custom';
+  const saveSoon = () => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveSettings, 300);
+  };
+
+  // Makes a saved theme from a built-in or another saved theme, and switches to it.
+  function createTheme(base, name) {
+    const { bg, surface, text, accent, danger } = base;
+    const t = { id: uid(), name, bg, surface, text, accent, ...(danger ? { danger } : {}) };
+    settings.customThemes.push(t);
+    settings.theme = t.id;
+    saveSettings();
+  }
+  const newFromCurrent = () => createTheme(current, `Custom ${settings.customThemes.length + 1}`);
+
+  function remove(t) {
+    if (!confirm(`Delete the theme "${t.name}"?`)) return;
+    const i = settings.customThemes.findIndex((x) => x.id === t.id);
+    if (i >= 0) settings.customThemes.splice(i, 1);
+    settings.theme = 'midnight';
+    saveSettings();
   }
 </script>
 
@@ -58,28 +69,56 @@
             <span class="name">{p.name}</span>
           </button>
         {/each}
+        <button class="tile new" onclick={newFromCurrent}>
+          <span class="plus">+</span>
+          <span class="name">New theme</span>
+        </button>
       </div>
     </div>
 
     <div class="field">
-      <span class="label">Customize colors (switches to the Custom theme)</span>
-      <div class="colors">
-        {#each FIELDS as [key, label] (key)}
-          <div class="crow">
-            <span>{label}</span>
-            <input type="color" aria-label={label} value={active[key]} oninput={(e) => setColor(key, e.currentTarget.value)} />
-            <input
-              class="hex"
-              maxlength="7"
-              aria-label="{label} hex"
-              value={active[key]}
-              oninput={(e) => {
-                const v = e.currentTarget.value.trim();
-                if (isHex(v)) setColor(key, v.toLowerCase());
-              }} />
+      {#each settings.customThemes.filter((t) => t.id === settings.theme) as t (t.id)}
+        <span class="label">Edit this theme</span>
+        <div class="editor">
+          <input class="themename" aria-label="Theme name" bind:value={t.name} onchange={saveSettings} />
+          {#each FIELDS as [key, label] (key)}
+            <div class="crow">
+              <span>{label}</span>
+              <input
+                type="color"
+                aria-label={label}
+                value={t[key]}
+                oninput={(e) => {
+                  t[key] = e.currentTarget.value;
+                  saveSoon();
+                }} />
+              <input
+                class="hex"
+                maxlength="7"
+                aria-label="{label} hex"
+                value={t[key]}
+                oninput={(e) => {
+                  const v = e.currentTarget.value.trim();
+                  if (isHex(v)) {
+                    t[key] = v.toLowerCase();
+                    saveSoon();
+                  }
+                }} />
+            </div>
+          {/each}
+          <div class="row">
+            <button onclick={() => createTheme(t, `${t.name} copy`)}>Duplicate</button>
+            <button class="ghost danger" onclick={() => remove(t)}>Delete theme</button>
           </div>
-        {/each}
-      </div>
+        </div>
+      {:else}
+        <p class="muted">
+          {current.name} is a built-in theme. Make an editable copy to change its colors, or start a new theme with the + tile.
+        </p>
+        <div class="row">
+          <button onclick={() => createTheme(current, `${current.name} copy`)}>Make an editable copy</button>
+        </div>
+      {/each}
     </div>
 
     <div class="field">
@@ -95,15 +134,18 @@
 
 <style>
   h3 { font-size: 17px; font-weight: 600; }
-  .wide { width: min(620px, calc(100vw - 40px)); }
+  .wide { width: min(640px, calc(100vw - 40px)); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
   .tile { display: flex; flex-direction: column; gap: 8px; align-items: stretch; padding: 8px; text-align: left; border-radius: 10px; }
   .tile.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .tile.new { justify-content: center; align-items: center; border-style: dashed; background: transparent; color: var(--muted); }
+  .plus { font-size: 22px; line-height: 34px; }
   .preview { display: flex; align-items: center; gap: 5px; height: 34px; padding: 7px; border-radius: 6px; border: 1px solid var(--border); }
   .preview i { flex: 1; height: 100%; border-radius: 3px; }
   .preview b { width: 12px; height: 12px; border-radius: 50%; flex: none; }
   .name { font-size: 12px; }
-  .colors { display: flex; flex-direction: column; gap: 8px; }
+  .editor { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; }
+  .themename { font-weight: 600; }
   .crow { display: grid; grid-template-columns: 1fr 44px 96px; gap: 10px; align-items: center; }
   .crow input[type='color'] { width: 44px; height: 30px; padding: 2px; cursor: pointer; }
   .hex { font-variant-numeric: tabular-nums; }

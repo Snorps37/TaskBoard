@@ -49,6 +49,17 @@ export const uid = () => Math.random().toString(36).slice(2, 10);
 export const ymd = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const today = () => ymd(new Date());
+export const nowHM = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+// "15:30" -> "3:30 PM" (in the computer's own style)
+export const fmtTime = (hm) =>
+  hm ? new Date(`1970-01-01T${hm}`).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+// Sorts timed tasks by time, with untimed ones after (stable, so manual order is kept for ties).
+export const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99');
+export const modalOpen = () =>
+  !!(ui.editingId || ui.showTags || ui.showSeries || ui.showSchoology || ui.showMylab || ui.showPrefs);
 
 function seed() {
   return {
@@ -128,7 +139,7 @@ export function removeColumn(id) {
 
 // ---- tasks ----
 export function addTask(fields) {
-  const task = { id: uid(), title: '', notes: '', due: '', color: '', done: false, tagIds: [], ...fields };
+  const task = { id: uid(), title: '', notes: '', due: '', time: '', color: '', done: false, tagIds: [], ...fields };
   db.tasks.push(task);
   return task;
 }
@@ -271,10 +282,11 @@ function titleFor(s, i) {
 }
 
 export function describeSeries(s) {
-  if (s.rule === 'daily') return 'Every day';
-  if (s.rule === 'every') return `Every ${s.every} days`;
-  if (s.rule === 'weekdays') return s.days.map((d) => WEEKDAYS[d]).join(', ');
-  return 'Rotation: ' + s.steps.map((x) => x || 'off').join(', ');
+  const at = s.time ? ` at ${fmtTime(s.time)}` : '';
+  if (s.rule === 'daily') return 'Every day' + at;
+  if (s.rule === 'every') return `Every ${s.every} days` + at;
+  if (s.rule === 'weekdays') return s.days.map((d) => WEEKDAYS[d]).join(', ') + at;
+  return 'Rotation: ' + s.steps.map((x) => x || 'off').join(', ') + at;
 }
 
 // Recurring tasks only show on the board once they're due (or overdue and not done).
@@ -291,6 +303,7 @@ export function extendSeries(untilDate) {
           title,
           notes: s.notes,
           due: s.nextDate,
+          time: s.time ?? '',
           color: s.color,
           tagIds: [...s.tagIds],
           columnId: s.columnId,
@@ -317,6 +330,7 @@ export function addSeries(fields) {
     steps: [],
     start: today(),
     until: '',
+    time: '',
     nextIndex: 0,
     ...fields
   };
@@ -357,7 +371,7 @@ export const settings = $state({
   lastSync: '',
   mylabClass: 'AP Calc',
   theme: 'midnight',
-  customTheme: { bg: '#0d0f14', surface: '#14171e', text: '#e8eaf0', accent: '#8b9cff' },
+  customThemes: [], // your saved themes: [{ id, name, bg, surface, text, accent }]
   startup: 'today' // 'today' (today's board) | 'board' | 'calendar'
 });
 export const sync = $state({ busy: false, message: '' });
@@ -369,6 +383,18 @@ export async function loadSettings() {
   } catch {
     // keep defaults
   }
+  // Version 0.3 kept a single custom theme; turn it into a saved theme.
+  if (settings.customTheme) {
+    const c = settings.customTheme;
+    const edited = c.bg !== '#0d0f14' || c.surface !== '#14171e' || c.text !== '#e8eaf0' || c.accent !== '#8b9cff';
+    if (edited && !settings.customThemes.length) {
+      const id = uid();
+      settings.customThemes.push({ id, name: 'Custom', bg: c.bg, surface: c.surface, text: c.text, accent: c.accent });
+      if (settings.theme === 'custom') settings.theme = id;
+    }
+    delete settings.customTheme;
+  }
+  if (settings.theme === 'custom') settings.theme = 'midnight';
   settings.loaded = true;
 }
 export function saveSettings() {

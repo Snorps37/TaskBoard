@@ -1,7 +1,7 @@
 <script>
   import {
     db, ui, currentBoard, addTask, moveTask, addColumn, removeColumn, addBoard,
-    matchesFilter, accentOf, tagById, today, showsOnBoard, tagTask, setTaskDone
+    matchesFilter, accentOf, tagById, today, showsOnBoard, tagTask, setTaskDone, addDays, fmtTime, nowHM, modalOpen
   } from './db.svelte.js';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
@@ -88,14 +88,49 @@
 
   const dueLabel = (due) =>
     new Date(due + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const isLate = (t) => t.due && !t.done && t.due < today();
+  const isLate = (t) => t.due && !t.done && (t.due < today() || (t.due === today() && t.time && t.time < nowHM()));
+
+  // ---- stepping between days (day board only) ----
+  let dir = $state(1);
+  function go(n) {
+    dir = n;
+    ui.dayBoard = addDays(day, n);
+    ui.selectedDay = ui.dayBoard;
+  }
+  function goToday() {
+    dir = day < today() ? 1 : -1;
+    ui.dayBoard = today();
+    ui.selectedDay = ui.dayBoard;
+  }
+  // Left and right arrow keys step a day, unless you're typing or a dialog is open.
+  function onKey(e) {
+    if (!day || modalOpen() || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const el = e.target;
+    const typing =
+      el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type !== 'checkbox'));
+    if (typing) return;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      go(-1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      go(1);
+    }
+  }
 </script>
+
+<svelte:window onkeydown={onKey} />
 
 <div class="board">
   {#if day}
     <div class="day-head">
       <button onclick={() => (ui.dayBoard = null)}>‹ Calendar</button>
-      <h2>{dayLabel}</h2>
+      <div class="stepper">
+        <button class="ghost" aria-label="Previous day" title="Previous day (left arrow key)" onclick={() => go(-1)}>‹</button>
+        <h2>{dayLabel}</h2>
+        <button class="ghost" aria-label="Next day" title="Next day (right arrow key)" onclick={() => go(1)}>›</button>
+      </div>
+      <button disabled={day === today()} onclick={goToday}>Today</button>
     </div>
   {:else}
   <div class="toolbar">
@@ -117,7 +152,8 @@
   {/if}
 
   {#if board}
-    <div class="columns">
+    {#key day}
+    <div class="columns" in:fly={{ x: dir * 28, duration: 150 }}>
       {#each board.columns as col (col.id)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <section
@@ -161,9 +197,11 @@
                   onclick={(e) => e.stopPropagation()} />
                 <div class="body">
                   <span class="title">{t.title || 'Untitled'}</span>
-                  {#if t.due || t.tagIds.length}
+                  {#if (t.due && (!day || t.time)) || t.tagIds.length}
                     <div class="meta">
-                      {#if t.due}<span class="due" class:late={isLate(t)}>{dueLabel(t.due)}</span>{/if}
+                      {#if t.due && (!day || t.time)}
+                        <span class="due" class:late={isLate(t)}>{#if !day}{dueLabel(t.due)}{/if}{#if !day && t.time}, {/if}{#if t.time}{fmtTime(t.time)}{/if}</span>
+                      {/if}
                       {#each t.tagIds as id (id)}
                         {@const tg = tagById(id)}
                         {#if tg}<span class="chip" style:--c={tg.color}>{tg.name}</span>{/if}
@@ -195,6 +233,7 @@
           }} />
       </div>
     </div>
+    {/key}
   {/if}
 </div>
 
@@ -203,7 +242,9 @@
   .toolbar { display: flex; gap: 10px; padding: 14px 24px 0; }
   .toolbar select { min-width: 160px; }
   .day-head { display: flex; align-items: center; gap: 14px; padding: 14px 24px 0; }
-  .day-head h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .day-head h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; min-width: 15em; text-align: center; }
+  .stepper { display: flex; align-items: center; gap: 4px; }
+  .stepper button { font-size: 18px; padding: 2px 12px; }
   .columns { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px 24px 24px; overflow-x: auto; align-items: flex-start; }
 
   .col {

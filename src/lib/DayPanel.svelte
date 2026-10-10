@@ -1,5 +1,5 @@
 <script>
-  import { db, ui, addTask, currentBoard, matchesFilter, accentOf, tagById, tagTask, setTaskDone } from './db.svelte.js';
+  import { db, ui, addTask, currentBoard, matchesFilter, accentOf, tagById, tagTask, setTaskDone, fmtTime, byTime } from './db.svelte.js';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
 
@@ -7,7 +7,7 @@
   const label = $derived(
     new Date(day + 'T00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
   );
-  const items = $derived(db.tasks.filter((t) => t.due === day && matchesFilter(t)));
+  const items = $derived(db.tasks.filter((t) => t.due === day && matchesFilter(t)).sort(byTime));
   const doneCount = $derived(items.filter((t) => t.done).length);
 
   let title = $state('');
@@ -70,7 +70,7 @@
         in:fly={{ y: 6, duration: 130 }}>
         <input type="checkbox" aria-label="Done" checked={t.done} onchange={(e) => setTaskDone(t, e.currentTarget.checked)} />
         <button class="task" class:done={t.done} onclick={() => (ui.editingId = t.id)}>
-          <span>{t.title || 'Untitled'}</span>
+          <span>{#if t.time}<small class="time">{fmtTime(t.time)}</small> {/if}{t.title || 'Untitled'}</span>
           {#if t.tagIds.length}
             <span class="tags">
               {#each t.tagIds as id (id)}
@@ -124,6 +124,7 @@
   .task { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 0; text-align: left; background: none; border: 0; border-radius: 0; overflow-wrap: anywhere; }
   .task:hover { background: none; }
   .task.done > span:first-child { text-decoration: line-through; color: var(--muted); }
+  .time { color: var(--muted); font-variant-numeric: tabular-nums; }
   .tags { display: flex; flex-wrap: wrap; gap: 6px; }
   .empty { font-size: 13px; }
 </style>

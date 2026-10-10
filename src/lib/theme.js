@@ -55,6 +55,9 @@ export function applyTheme(t) {
 }
 
 export function resolveTheme(settings) {
-  if (settings.theme === 'custom') return settings.customTheme;
-  return PRESETS.find((p) => p.id === settings.theme) ?? PRESETS[0];
+  return (
+    settings.customThemes.find((t) => t.id === settings.theme) ??
+    PRESETS.find((p) => p.id === settings.theme) ??
+    PRESETS[0]
+  );
 }

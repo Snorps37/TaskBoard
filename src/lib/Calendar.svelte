@@ -1,5 +1,5 @@
 <script>
-  import { db, ui, ymd, today, matchesFilter, accentOf, extendSeries } from './db.svelte.js';
+  import { db, ui, ymd, today, matchesFilter, accentOf, extendSeries, fmtTime, byTime } from './db.svelte.js';
   import { untrack } from 'svelte';
   import DayPanel from './DayPanel.svelte';
   import Board from './Board.svelte';
@@ -29,6 +29,7 @@
     for (const t of db.tasks) {
       if (t.due && matchesFilter(t)) (map[t.due] ??= []).push(t);
     }
+    for (const k in map) map[k].sort(byTime);
     return map;
   });
 
@@ -85,7 +86,7 @@
             <span class="num">{c.date.getDate()}</span>
             <span class="items">
               {#each list.slice(0, 3) as t (t.id)}
-                <span class="pill" class:done={t.done} style:--c={accentOf(t) || 'var(--neutral)'}>{t.title || 'Untitled'}</span>
+                <span class="pill" class:done={t.done} style:--c={accentOf(t) || 'var(--neutral)'}>{#if t.time}<b class="pt">{fmtTime(t.time)}</b> {/if}{t.title || 'Untitled'}</span>
               {/each}
               {#if list.length > 3}<span class="more">+{list.length - 3} more</span>{/if}
             </span>
@@ -139,6 +140,7 @@
     border-left: 3px solid var(--c);
     background: color-mix(in srgb, var(--c) 16%, transparent);
   }
+  .pt { font-weight: 600; }
   .pill.done { text-decoration: line-through; opacity: 0.55; }
   .more { padding-left: 6px; font-size: 11px; color: var(--muted); }
 </style>

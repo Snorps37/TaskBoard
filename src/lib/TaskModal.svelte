@@ -36,7 +36,8 @@
         <span class="label">Due date</span>
         <div class="row">
           <input type="date" aria-label="Due date" bind:value={task.due} />
-          {#if task.due}<button class="ghost" onclick={() => (task.due = '')}>Clear</button>{/if}
+          {#if task.due}<input type="time" aria-label="Time (optional)" bind:value={task.time} />{/if}
+          {#if task.due}<button class="ghost" onclick={() => { task.due = ''; task.time = ''; }}>Clear</button>{/if}
         </div>
       </div>
       <div class="field">

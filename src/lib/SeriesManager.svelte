@@ -13,6 +13,7 @@
     stepsText: '',
     start: today(),
     until: '',
+    time: '',
     color: '',
     tagIds: []
   });
@@ -51,6 +52,7 @@
       rule: draft.rule,
       start: draft.start || today(),
       until: draft.until,
+      time: draft.time,
       color: draft.color,
       tagIds: [...draft.tagIds]
     };
@@ -168,6 +170,11 @@
             <span class="label">Last day (optional)</span>
             <input type="date" bind:value={draft.until} />
           </div>
+        </div>
+
+        <div class="field">
+          <span class="label">Time of day (optional)</span>
+          <input type="time" bind:value={draft.time} />
         </div>
 
         <div class="field">
