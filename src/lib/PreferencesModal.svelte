@@ -129,6 +129,14 @@
         <option value="calendar">Month calendar</option>
       </select>
     </div>
+
+    <div class="field">
+      <span class="label">Upcoming layout</span>
+      <select bind:value={settings.upcomingLayout} onchange={saveSettings}>
+        <option value="horizontal">Horizontal (a column for each day)</option>
+        <option value="vertical">Vertical (one long list)</option>
+      </select>
+    </div>
   </div>
 </div>
 

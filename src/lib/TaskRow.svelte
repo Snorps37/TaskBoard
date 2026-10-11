@@ -2,7 +2,7 @@
   import { db, ui, accentOf, tagById, setTaskDone, tagTask, fmtTime } from './db.svelte.js';
   import { fly } from 'svelte/transition';
 
-  let { t, showDate = false } = $props();
+  let { t, showDate = false, compact = false } = $props();
 
   let tagHover = $state(false);
   const dragTag = $derived(db.tags.find((x) => x.id === ui.dragTagId));
@@ -34,6 +34,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="item"
+  class:compact
   class:done={t.done}
   class:tag-target={tagHover}
   style:--c={accentOf(t) || 'var(--neutral)'}
@@ -86,6 +87,9 @@
     cursor: grab;
     transition: border-color var(--fast), opacity var(--fast);
   }
+  .item.compact { flex-wrap: wrap; align-items: flex-start; }
+  .item.compact .title { flex: 1 1 100px; }
+  .item.compact .tags, .item.compact .date { flex-basis: 100%; padding-left: 26px; }
   .item:hover { border-color: color-mix(in srgb, var(--c) 55%, var(--border)); border-left-color: var(--c); }
   .item.tag-target { outline: 2px solid var(--tc, var(--accent)); outline-offset: 1px; }
   input[type='checkbox'] { margin-top: 0; }

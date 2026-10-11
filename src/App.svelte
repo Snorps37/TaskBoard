@@ -10,6 +10,7 @@
   import SchoologyModal from './lib/SchoologyModal.svelte';
   import MylabModal from './lib/MylabModal.svelte';
   import PreferencesModal from './lib/PreferencesModal.svelte';
+  import DragTray from './lib/DragTray.svelte';
   import { VERSION } from './version.js';
   import { fade, fly } from 'svelte/transition';
 
@@ -48,6 +49,27 @@
       pending = null;
     }
   }
+
+  // ---- Drag safety ----
+  // If a drag ends somewhere we never hear about (the dragged item vanished, or Esc was pressed),
+  // clear it the next time the mouse moves. Mouse events don't fire during a real drag.
+  let dragStarted = 0;
+  $effect(() => {
+    if (ui.dragTaskId || ui.dragTagId) dragStarted = Date.now();
+  });
+  function clearStuckDrag() {
+    if ((ui.dragTaskId || ui.dragTagId) && Date.now() - dragStarted > 400) {
+      ui.dragTaskId = null;
+      ui.dragTagId = null;
+    }
+  }
+
+  // Short confirmation message ("Moved to Tomorrow").
+  $effect(() => {
+    if (!ui.toast) return;
+    const id = setTimeout(() => (ui.toast = ''), 2200);
+    return () => clearTimeout(id);
+  });
 
   // ---- Settings menu ----
   let menuOpen = $state(false);
@@ -132,6 +154,11 @@
   onbeforeunload={flush}
   onclick={onWindowClick}
   onmouseup={onMouseUp}
+  onmousemove={clearStuckDrag}
+  ondragend={() => {
+    ui.dragTaskId = null;
+    ui.dragTagId = null;
+  }}
   onmousedown={(e) => (e.button === 3 || e.button === 4) && e.preventDefault()}
   onkeydown={(e) => e.key === 'Escape' && (menuOpen = false)} />
 
@@ -195,6 +222,12 @@
     {#if ui.showSchoology}<SchoologyModal />{/if}
     {#if ui.showMylab}<MylabModal />{/if}
     {#if ui.showPrefs}<PreferencesModal />{/if}
+    {#if ui.dragTaskId}<DragTray />{/if}
+    {#if ui.toast}
+      <div class="toast-wrap">
+        <div class="toast" role="status" in:fly={{ y: 12, duration: 140 }} out:fade={{ duration: 120 }}>{ui.toast}</div>
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -216,6 +249,8 @@
   .tabs button:hover { background: var(--surface-2); color: var(--text); }
   .tabs button.active { background: var(--surface-3); color: var(--text); }
   .filters { display: flex; gap: 6px; align-items: center; }
+  .toast-wrap { position: fixed; left: 0; right: 0; bottom: 28px; display: flex; justify-content: center; pointer-events: none; z-index: 60; }
+  .toast { padding: 8px 16px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 999px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
   .menu-wrap { position: relative; }
   .menu {
     position: absolute;

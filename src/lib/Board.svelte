@@ -29,6 +29,14 @@
   $effect(() => {
     if (!ui.dragTagId) tagOver = null;
   });
+  // If the drag was ended elsewhere (dropped on the tray, say), reset this board's own drag state.
+  $effect(() => {
+    if (!ui.dragTaskId) {
+      dragId = null;
+      overCol = null;
+      overCard = null;
+    }
+  });
 
   function quickAdd(col) {
     const title = (drafts[col.id] ?? '').trim();
@@ -39,10 +47,12 @@
 
   function dragStart(e, t) {
     dragId = t.id;
+    ui.dragTaskId = t.id; // shows the tray at the bottom
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', t.id);
   }
   function dragEnd() {
+    ui.dragTaskId = null;
     dragId = null;
     overCol = null;
     overCard = null;

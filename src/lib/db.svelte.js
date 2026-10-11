@@ -18,7 +18,8 @@ export const ui = $state({
   showMylab: false,
   showPrefs: false,
   dragTagId: null,
-  dragTaskId: null
+  dragTaskId: null,
+  toast: ''
 });
 
 export const db = $state({
@@ -401,7 +402,8 @@ export const settings = $state({
   mylabClass: 'AP Calc',
   theme: 'midnight',
   customThemes: [], // your saved themes: [{ id, name, bg, surface, text, accent }]
-  startup: 'today' // 'today' (today's board) | 'board' | 'calendar'
+  startup: 'today', // 'today' (today's board) | 'board' (Upcoming) | 'calendar'
+  upcomingLayout: 'horizontal' // 'horizontal' (columns) | 'vertical' (list)
 });
 export const sync = $state({ busy: false, message: '' });
 

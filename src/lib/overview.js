@@ -38,3 +38,14 @@ export function buildOverview(tasks, t0, matches = () => true) {
 
   return { overdue, days, later, undated };
 }
+
+// The drop targets in the tray that appears while you drag a task:
+// "No date", today and the next 6 days, and "+1 week" (counted from the task's own date, or today if it has none/is past).
+export function trayTiles(t0, taskDue = '') {
+  const base = taskDue && taskDue >= t0 ? taskDue : t0;
+  return [
+    { key: 'none', kind: 'none', date: '', i: -1 },
+    ...Array.from({ length: 7 }, (_, i) => ({ key: `d${i}`, kind: 'day', date: addDays(t0, i), i })),
+    { key: 'week', kind: 'week', date: addDays(base, 7), i: -1 }
+  ];
+}
