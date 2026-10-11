@@ -1,5 +1,5 @@
 <script>
-  import { db, ui, ymd, today, matchesFilter, accentOf, extendSeries, fmtTime, byTime } from './db.svelte.js';
+  import { db, ui, ymd, today, matchesFilter, accentOf, extendSeries, fmtTime, byTime, moveTaskToDay } from './db.svelte.js';
   import { untrack } from 'svelte';
   import DayPanel from './DayPanel.svelte';
   import Board from './Board.svelte';
@@ -39,6 +39,45 @@
     untrack(() => extendSeries(end));
   });
 
+  // ---- dragging a task onto another day ----
+  let overDay = $state(null);
+  let flipTimer = null;
+  $effect(() => {
+    if (!ui.dragTaskId) overDay = null;
+  });
+  function startDrag(e, t) {
+    ui.dragTaskId = t.id;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', t.id);
+  }
+  function cellOver(e, c) {
+    if (!ui.dragTaskId) return;
+    e.preventDefault();
+    overDay = c.key;
+  }
+  function cellDrop(e, c) {
+    if (!ui.dragTaskId) return;
+    e.preventDefault();
+    moveTaskToDay(ui.dragTaskId, c.key);
+    ui.dragTaskId = null;
+    ui.selectedDay = c.key;
+  }
+  // Hold a dragged task over the month arrows to flip months.
+  function monthHover(e, n) {
+    if (!ui.dragTaskId) return;
+    e.preventDefault();
+    if (!flipTimer) {
+      flipTimer = setTimeout(() => {
+        flipTimer = null;
+        shift(n);
+      }, 650);
+    }
+  }
+  function monthLeave() {
+    clearTimeout(flipTimer);
+    flipTimer = null;
+  }
+
   function shift(n) {
     dir = n;
     cursor = new Date(cursor.getFullYear(), cursor.getMonth() + n, 1);
@@ -61,9 +100,9 @@
     <div class="head">
       <h2>{title}</h2>
       <div class="row">
-        <button aria-label="Previous month" onclick={() => shift(-1)}>‹</button>
+        <button aria-label="Previous month" onclick={() => shift(-1)} ondragover={(e) => monthHover(e, -1)} ondragleave={monthLeave}>‹</button>
         <button onclick={goToday}>Today</button>
-        <button aria-label="Next month" onclick={() => shift(1)}>›</button>
+        <button aria-label="Next month" onclick={() => shift(1)} ondragover={(e) => monthHover(e, 1)} ondragleave={monthLeave}>›</button>
       </div>
     </div>
 
@@ -75,22 +114,34 @@
       <div class="grid" in:fly={{ x: dir * 28, duration: 170 }}>
         {#each cells as c (c.key)}
           {@const list = byDay[c.key] ?? []}
-          <button
+          <div
             class="cell"
+            role="button"
+            tabindex="0"
             class:muted={!c.inMonth}
             class:today={c.key === today()}
             class:selected={ui.selectedDay === c.key}
-            title="Double-click to open this day as a board"
+            class:drop={ui.dragTaskId && overDay === c.key}
+            title="Double-click to open this day as a board. Drag a task here to move it to this day."
             onclick={() => (ui.selectedDay = c.key)}
-            ondblclick={() => (ui.dayBoard = c.key)}>
+            ondblclick={() => (ui.dayBoard = c.key)}
+            onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), (ui.selectedDay = c.key))}
+            ondragover={(e) => cellOver(e, c)}
+            ondrop={(e) => cellDrop(e, c)}>
             <span class="num">{c.date.getDate()}</span>
             <span class="items">
               {#each list.slice(0, 3) as t (t.id)}
-                <span class="pill" class:done={t.done} style:--c={accentOf(t) || 'var(--neutral)'}>{#if t.time}<b class="pt">{fmtTime(t.time)}</b> {/if}{t.title || 'Untitled'}</span>
+                <span
+                  class="pill"
+                  class:done={t.done}
+                  style:--c={accentOf(t) || 'var(--neutral)'}
+                  draggable="true"
+                  ondragstart={(e) => startDrag(e, t)}
+                  ondragend={() => (ui.dragTaskId = null)}>{#if t.time}<b class="pt">{fmtTime(t.time)}</b> {/if}{t.title || 'Untitled'}</span>
               {/each}
               {#if list.length > 3}<span class="more">+{list.length - 3} more</span>{/if}
             </span>
-          </button>
+          </div>
         {/each}
       </div>
     {/key}
@@ -119,9 +170,14 @@
     text-align: left;
     overflow: hidden;
     background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 10px;
+    cursor: pointer;
+    transition: background var(--fast), border-color var(--fast);
   }
   .cell:hover { background: var(--surface-2); }
+  .cell.drop { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+  .pill { cursor: grab; }
   .cell.muted { opacity: 0.45; }
   .cell.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .cell.today .num { background: var(--accent); color: var(--on-accent); }

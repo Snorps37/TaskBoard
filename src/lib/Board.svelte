@@ -1,7 +1,7 @@
 <script>
   import {
     db, ui, currentBoard, addTask, moveTask, addColumn, removeColumn, addBoard,
-    matchesFilter, accentOf, tagById, today, showsOnBoard, tagTask, setTaskDone, addDays, fmtTime, nowHM, modalOpen
+    matchesFilter, accentOf, tagById, today, showsOnBoard, tagTask, setTaskDone, addDays, fmtTime, nowHM, modalOpen, moveTaskToDay
   } from './db.svelte.js';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
@@ -76,7 +76,10 @@
   }
   function drop(e, col) {
     e.preventDefault();
-    if (dragId) moveTask(dragId, col.id, overCard && overCard !== dragId ? overCard : null);
+    if (dragId) {
+      moveTask(dragId, col.id, overCard && overCard !== dragId ? overCard : null);
+      if (day) moveTaskToDay(dragId, day); // dropping into this day's board schedules it for this day
+    }
     dragEnd();
   }
 
@@ -97,6 +100,30 @@
     ui.dayBoard = addDays(day, n);
     ui.selectedDay = ui.dayBoard;
   }
+  // Drop a card on an arrow to move it one day; hold it there to flip to that day and drop it anywhere.
+  let navTimer = null;
+  function arrowOver(e, n) {
+    if (!dragId) return;
+    e.preventDefault();
+    if (!navTimer) {
+      navTimer = setTimeout(() => {
+        navTimer = null;
+        go(n);
+      }, 650);
+    }
+  }
+  function arrowLeave() {
+    clearTimeout(navTimer);
+    navTimer = null;
+  }
+  function arrowDrop(e, n) {
+    if (!dragId) return;
+    e.preventDefault();
+    arrowLeave();
+    moveTaskToDay(dragId, addDays(day, n));
+    dragEnd();
+  }
+
   function goToday() {
     dir = day < today() ? 1 : -1;
     ui.dayBoard = today();
@@ -126,11 +153,34 @@
     <div class="day-head">
       <button onclick={() => (ui.dayBoard = null)}>‹ Calendar</button>
       <div class="stepper">
-        <button class="ghost" aria-label="Previous day" title="Previous day (left arrow key)" onclick={() => go(-1)}>‹</button>
+        <button
+          class="ghost"
+          class:hint={dragId}
+          aria-label="Previous day"
+          title="Previous day (left arrow key). Drop a card here to move it to the previous day."
+          onclick={() => go(-1)}
+          ondragover={(e) => arrowOver(e, -1)}
+          ondragleave={arrowLeave}
+          ondrop={(e) => arrowDrop(e, -1)}>‹</button>
         <h2>{dayLabel}</h2>
-        <button class="ghost" aria-label="Next day" title="Next day (right arrow key)" onclick={() => go(1)}>›</button>
+        <button
+          class="ghost"
+          class:hint={dragId}
+          aria-label="Next day"
+          title="Next day (right arrow key). Drop a card here to move it to the next day."
+          onclick={() => go(1)}
+          ondragover={(e) => arrowOver(e, 1)}
+          ondragleave={arrowLeave}
+          ondrop={(e) => arrowDrop(e, 1)}>›</button>
       </div>
       <button disabled={day === today()} onclick={goToday}>Today</button>
+      {#if db.boards.length > 1}
+        <select aria-label="Board" bind:value={db.currentBoardId}>
+          {#each db.boards as b (b.id)}
+            <option value={b.id}>{b.name}</option>
+          {/each}
+        </select>
+      {/if}
     </div>
   {:else}
   <div class="toolbar">
@@ -245,6 +295,7 @@
   .day-head h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; min-width: 15em; text-align: center; }
   .stepper { display: flex; align-items: center; gap: 4px; }
   .stepper button { font-size: 18px; padding: 2px 12px; }
+  .stepper button.hint { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text); }
   .columns { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px 24px 24px; overflow-x: auto; align-items: flex-start; }
 
   .col {

@@ -125,7 +125,7 @@
       <span class="label">When the app opens</span>
       <select bind:value={settings.startup} onchange={saveSettings}>
         <option value="today">Today's board</option>
-        <option value="board">Main board</option>
+        <option value="board">Upcoming</option>
         <option value="calendar">Month calendar</option>
       </select>
     </div>

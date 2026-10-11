@@ -2,7 +2,7 @@
   import { db, ui, settings, init, storage, loadSettings, syncSchoology, today } from './lib/db.svelte.js';
   import { applyTheme, resolveTheme } from './lib/theme.js';
   import { onMount, tick, untrack } from 'svelte';
-  import Board from './lib/Board.svelte';
+  import Upcoming from './lib/Upcoming.svelte';
   import Calendar from './lib/Calendar.svelte';
   import TaskModal from './lib/TaskModal.svelte';
   import TagManager from './lib/TagManager.svelte';
@@ -143,7 +143,7 @@
         <span class="version">v{VERSION}</span>
       </div>
       <nav class="tabs">
-        <button class:active={ui.view === 'board'} onclick={() => (ui.view = 'board')}>Board</button>
+        <button class:active={ui.view === 'board'} onclick={() => (ui.view = 'board')}>Upcoming</button>
         <button class:active={ui.view === 'calendar'} onclick={() => { ui.view = 'calendar'; ui.dayBoard = null; }}>Calendar</button>
       </nav>
       <div class="spacer"></div>
@@ -181,7 +181,7 @@
       {#key ui.view}
         <div class="view" in:fade={{ duration: 140 }}>
           {#if ui.view === 'board'}
-            <Board />
+            <Upcoming />
           {:else}
             <Calendar />
           {/if}

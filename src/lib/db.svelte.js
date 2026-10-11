@@ -17,7 +17,8 @@ export const ui = $state({
   showSchoology: false,
   showMylab: false,
   showPrefs: false,
-  dragTagId: null
+  dragTagId: null,
+  dragTaskId: null
 });
 
 export const db = $state({
@@ -245,6 +246,14 @@ export function removeTag(id) {
     if (k >= 0) t.tagIds.splice(k, 1);
   }
   if (ui.filterTagId === id) ui.filterTagId = null;
+}
+
+// Reschedules one task to another day (or to no day with ''). Only this task moves; a repeating series is untouched.
+export function moveTaskToDay(id, day) {
+  const t = db.tasks.find((x) => x.id === id);
+  if (!t) return;
+  t.due = day;
+  if (!day) t.time = '';
 }
 
 // Adds a tag to a task (used when you drag a tag onto it).

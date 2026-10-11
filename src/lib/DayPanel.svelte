@@ -64,6 +64,13 @@
         class:tag-target={ui.dragTagId && tagOver === t.id}
         style:--c={accentOf(t) || 'var(--neutral)'}
         style:--tc={dragTag?.color ?? 'var(--accent)'}
+        draggable="true"
+        ondragstart={(e) => {
+          ui.dragTaskId = t.id;
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', t.id);
+        }}
+        ondragend={() => (ui.dragTaskId = null)}
         ondragover={(e) => overItem(e, t)}
         ondrop={(e) => dropItem(e, t)}
         animate:flip={{ duration: 150 }}
