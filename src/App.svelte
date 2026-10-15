@@ -8,7 +8,6 @@
   import TagManager from './lib/TagManager.svelte';
   import SeriesManager from './lib/SeriesManager.svelte';
   import SchoologyModal from './lib/SchoologyModal.svelte';
-  import MylabModal from './lib/MylabModal.svelte';
   import PreferencesModal from './lib/PreferencesModal.svelte';
   import DragTray from './lib/DragTray.svelte';
   import { VERSION } from './version.js';
@@ -77,8 +76,7 @@
   const menuItems = [
     { label: 'Preferences', open: () => (ui.showPrefs = true) },
     { label: 'Repeating tasks', open: () => (ui.showSeries = true) },
-    { label: 'Schoology', open: () => (ui.showSchoology = true) },
-    { label: 'Pearson MyLab', open: () => (ui.showMylab = true) }
+    { label: 'Schoology', open: () => (ui.showSchoology = true) }
   ];
   function pick(item) {
     menuOpen = false;
@@ -113,7 +111,6 @@
     else if (ui.showTags) ui.showTags = false;
     else if (ui.showSeries) ui.showSeries = false;
     else if (ui.showSchoology) ui.showSchoology = false;
-    else if (ui.showMylab) ui.showMylab = false;
     else if (ui.showPrefs) ui.showPrefs = false;
     else if (menuOpen) menuOpen = false;
     else if (ui.view === 'calendar' && !ui.dayBoard && ui.selectedDay) ui.selectedDay = null;
@@ -220,7 +217,6 @@
     {#if ui.showTags}<TagManager />{/if}
     {#if ui.showSeries}<SeriesManager />{/if}
     {#if ui.showSchoology}<SchoologyModal />{/if}
-    {#if ui.showMylab}<MylabModal />{/if}
     {#if ui.showPrefs}<PreferencesModal />{/if}
     {#if ui.dragTaskId}<DragTray />{/if}
     {#if ui.toast}

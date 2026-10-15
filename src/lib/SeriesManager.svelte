@@ -1,6 +1,6 @@
 <script>
   import {
-    db, ui, today, addSeries, removeSeries, pushSeries, describeSeries, toggleTag, WEEKDAYS
+    db, ui, today, addSeries, updateSeries, removeSeries, pushSeries, describeSeries, toggleTag, WEEKDAYS
   } from './db.svelte.js';
   import ColorPicker from './ColorPicker.svelte';
   import { fade, scale, slide } from 'svelte/transition';
@@ -19,6 +19,7 @@
   });
 
   let adding = $state(db.series.length === 0);
+  let editingId = $state(null); // the repeating task being edited, or null
   let draft = $state(blank());
   let error = $state('');
   let pushBy = $state(1);
@@ -41,41 +42,81 @@
     else draft.days.push(i);
   }
 
-  function create() {
+  // Reads the form into a series. Returns null (and sets `error`) if something is missing.
+  function build() {
     const title = draft.title.trim();
     if (!title) {
       error = 'Give it a name.';
-      return;
+      return null;
     }
-    const s = {
+    const f = {
       title,
       rule: draft.rule,
       start: draft.start || today(),
       until: draft.until,
       time: draft.time,
       color: draft.color,
-      tagIds: [...draft.tagIds]
+      tagIds: [...draft.tagIds],
+      days: [],
+      steps: []
     };
-    if (draft.rule === 'every') s.every = Math.max(1, Math.trunc(Number(draft.every)) || 1);
+    if (draft.rule === 'every') f.every = Math.max(1, Math.trunc(Number(draft.every)) || 1);
     if (draft.rule === 'weekdays') {
       if (!draft.days.length) {
         error = 'Pick at least one weekday.';
-        return;
+        return null;
       }
-      s.days = [...draft.days];
+      f.days = [...draft.days].sort((a, b) => a - b);
     }
     if (draft.rule === 'cycle') {
       const steps = draft.stepsText.split(',').map((x) => x.trim()).map((x) => (x === '-' ? '' : x));
       if (steps.length < 2 || steps.every((x) => !x)) {
         error = 'List at least two steps, separated by commas.';
-        return;
+        return null;
       }
-      s.steps = steps;
+      f.steps = steps;
     }
-    addSeries(s);
-    draft = blank();
-    error = '';
+    return f;
+  }
+
+  function submit() {
+    const f = build();
+    if (!f) return;
+    if (editingId) updateSeries(editingId, f);
+    else addSeries(f);
+    cancel();
+  }
+
+  function startEdit(s) {
+    draft = {
+      title: s.title,
+      rule: s.rule,
+      every: s.every ?? 2,
+      days: [...(s.days ?? [])],
+      stepsText: (s.steps ?? []).map((x) => x || '-').join(', '),
+      start: s.start || today(),
+      until: s.until ?? '',
+      time: s.time ?? '',
+      color: s.color ?? '',
+      tagIds: [...s.tagIds]
+    };
+    editingId = s.id;
     adding = false;
+    error = '';
+  }
+
+  function startNew() {
+    draft = blank();
+    editingId = null;
+    adding = true;
+    error = '';
+  }
+
+  function cancel() {
+    draft = blank();
+    editingId = null;
+    adding = false;
+    error = '';
   }
 
   function del(s) {
@@ -105,22 +146,33 @@
     {/if}
 
     {#each db.series as s (s.id)}
-      <div class="series" style:--c={s.color || 'var(--neutral)'}>
-        <div class="info">
-          <strong>{s.title}</strong>
-          <span class="muted">{describeSeries(s)}</span>
-          <span class="muted">Next: {dayLabel(nextDue(s))}</span>
+      {#if editingId === s.id}
+        {@render formBox()}
+      {:else}
+        <div class="series" style:--c={s.color || 'var(--neutral)'}>
+          <div class="info">
+            <strong>{s.title}</strong>
+            <span class="muted">{describeSeries(s)}</span>
+            <span class="muted">Next: {dayLabel(nextDue(s))}</span>
+          </div>
+          <div class="row">
+            <button onclick={() => pushSeries(s.id, today(), pushBy)}>Push back from today</button>
+            <button onclick={() => startEdit(s)}>Edit</button>
+            <button class="ghost danger" onclick={() => del(s)}>Delete</button>
+          </div>
         </div>
-        <div class="row">
-          <button onclick={() => pushSeries(s.id, today(), pushBy)}>Push back from today</button>
-          <button class="ghost danger" onclick={() => del(s)}>Delete</button>
-        </div>
-      </div>
+      {/if}
     {/each}
 
     {#if !adding}
-      <button onclick={() => (adding = true)}>New repeating task</button>
+      <button onclick={startNew}>New repeating task</button>
     {:else}
+      {@render formBox()}
+    {/if}
+  </div>
+</div>
+
+{#snippet formBox()}
       <div class="form" transition:slide={{ duration: 140 }}>
         <div class="field">
           <span class="label">Name</span>
@@ -163,7 +215,7 @@
 
         <div class="two">
           <div class="field">
-            <span class="label">First day</span>
+            <span class="label">{editingId ? 'First day (the rotation counts from here)' : 'First day'}</span>
             <input type="date" bind:value={draft.start} />
           </div>
           <div class="field">
@@ -191,15 +243,17 @@
           </div>
         </div>
 
+        {#if editingId}
+          <small>Changing the schedule rebuilds the upcoming tasks from it. Finished and past tasks stay, and any you moved by hand go back to the schedule. Name, color, tag, and time changes keep your moved tasks where they are.</small>
+        {/if}
+
         {#if error}<p class="error">{error}</p>{/if}
         <div class="row">
-          <button class="primary" onclick={create}>Create</button>
-          {#if db.series.length}<button class="ghost" onclick={() => (adding = false)}>Cancel</button>{/if}
+          <button class="primary" onclick={submit}>{editingId ? 'Save changes' : 'Create'}</button>
+          {#if db.series.length}<button class="ghost" onclick={cancel}>Cancel</button>{/if}
         </div>
       </div>
-    {/if}
-  </div>
-</div>
+{/snippet}
 
 <style>
   h3 { font-size: 17px; font-weight: 600; }

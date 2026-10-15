@@ -1,5 +1,4 @@
 import { parseIcs } from './ics.js';
-import { parseMylab } from './mylab.js';
 
 // All app state lives here. Components import `db` and `ui` and mutate them directly;
 // App.svelte watches `db` and saves it to disk whenever it changes.
@@ -15,7 +14,6 @@ export const ui = $state({
   dayBoard: null,
   showSeries: false,
   showSchoology: false,
-  showMylab: false,
   showPrefs: false,
   dragTagId: null,
   dragTaskId: null,
@@ -40,7 +38,6 @@ export const storage = window.api ?? {
   save: async (json) => localStorage.setItem('taskboard', json),
   loadSettings: async () => localStorage.getItem('taskboard-settings'),
   saveSettings: async (json) => localStorage.setItem('taskboard-settings', json),
-  readClipboard: async () => navigator.clipboard.readText(),
   // In a browser: try the link directly; if the browser blocks it (CORS), go through your proxy if you set one.
   fetchIcs: async (url) => {
     const target = url.trim().replace(/^webcal:/i, 'https:');
@@ -80,7 +77,7 @@ export const fmtTime = (hm) =>
 // Sorts timed tasks by time, with untimed ones after (stable, so manual order is kept for ties).
 export const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99');
 export const modalOpen = () =>
-  !!(ui.editingId || ui.showTags || ui.showSeries || ui.showSchoology || ui.showMylab || ui.showPrefs);
+  !!(ui.editingId || ui.showTags || ui.showSeries || ui.showSchoology || ui.showPrefs);
 
 function seed() {
   return {
@@ -325,7 +322,7 @@ export function extendSeries(untilDate) {
   const now = today();
   for (const s of db.series) {
     let guard = 0;
-    while (s.nextDate <= untilDate && (!s.until || s.nextDate <= s.until) && guard++ < 400) {
+    while (s.nextDate <= untilDate && (!s.until || s.nextDate <= s.until) && guard++ < 5000) {
       const title = titleFor(s, s.nextIndex);
       if (title && s.nextDate >= now) {
         addTask({
@@ -369,6 +366,50 @@ export function addSeries(fields) {
   return s;
 }
 
+// Edits a repeating task. Finished and past tasks are never touched.
+// Look-only changes (name, color, tags, time) update the upcoming tasks in place, so ones you moved by hand stay put.
+// Changing the schedule itself (rule, days, rotation, first or last day) rebuilds the upcoming tasks from the rule.
+export function updateSeries(id, fields) {
+  const s = db.series.find((x) => x.id === id);
+  if (!s) return;
+  const now = today();
+  const upcoming = (t) => t.seriesId === id && !t.done && t.due >= now;
+  const norm = (k, v) => (k === 'days' ? [...v].sort((a, b) => a - b) : v);
+  const differs = (k) => k in fields && JSON.stringify(norm(k, fields[k])) !== JSON.stringify(norm(k, s[k]));
+
+  // In a rotation the name is part of every task's title, so renaming it changes the schedule too.
+  const scheduleChanged =
+    ['rule', 'every', 'days', 'steps', 'start', 'until'].some(differs) ||
+    (differs('title') && (fields.rule ?? s.rule) === 'cycle');
+  const changed = { title: differs('title'), color: differs('color'), time: differs('time'), tagIds: differs('tagIds') };
+
+  Object.assign(s, fields, { tagIds: [...(fields.tagIds ?? s.tagIds)] });
+
+  if (!scheduleChanged) {
+    for (const t of db.tasks) {
+      if (!upcoming(t)) continue;
+      if (changed.title) t.title = s.title;
+      if (changed.color) t.color = s.color;
+      if (changed.time) t.time = s.time ?? '';
+      if (changed.tagIds) t.tagIds = [...s.tagIds];
+    }
+    return;
+  }
+
+  // Rebuild. Days you already finished keep their task, so don't make a second one on those days.
+  const doneDays = new Set(db.tasks.filter((t) => t.seriesId === id && t.done && t.due >= now).map((t) => t.due));
+  for (let k = db.tasks.length - 1; k >= 0; k--) if (upcoming(db.tasks[k])) db.tasks.splice(k, 1);
+
+  s.nextIndex = 0;
+  s.nextDate = s.rule === 'weekdays' ? nextWeekday(s, s.start) : s.start;
+  const before = new Set(db.tasks.map((t) => t.id));
+  extendSeries(addDays(today(), 60));
+  for (let k = db.tasks.length - 1; k >= 0; k--) {
+    const t = db.tasks[k];
+    if (t.seriesId === id && !before.has(t.id) && doneDays.has(t.due)) db.tasks.splice(k, 1);
+  }
+}
+
 // Move every unfinished task of a series from `fromDate` onward by `days` (negative pulls earlier).
 export function pushSeries(id, fromDate, days) {
   const s = db.series.find((x) => x.id === id);
@@ -399,7 +440,6 @@ export const settings = $state({
   includeEvents: false,
   lastSync: '',
   proxyUrl: '', // web version only: address of your own proxy for the Schoology feed
-  mylabClass: 'AP Calc',
   theme: 'midnight',
   customThemes: [], // your saved themes: [{ id, name, bg, surface, text, accent }]
   startup: 'today', // 'today' (today's board) | 'board' (Upcoming) | 'calendar'
@@ -426,6 +466,7 @@ export async function loadSettings() {
     delete settings.customTheme;
   }
   if (settings.theme === 'custom') settings.theme = 'midnight';
+  delete settings.mylabClass; // the MyLab import was removed
   settings.loaded = true;
 }
 export function saveSettings() {
@@ -513,81 +554,5 @@ export async function syncSchoology() {
     sync.message = 'Could not sync: ' + msg;
   } finally {
     sync.busy = false;
-  }
-}
-
-// ---- Pearson MyLab Math import (paste the assignment table; run again to sync) ----
-export const mylab = $state({ message: '' });
-
-const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
-function mylabNotes(r) {
-  return [r.type, r.time ? `Due ${r.time}` : '', r.limit ? `Time limit ${r.limit} min` : ''].filter(Boolean).join('. ');
-}
-
-// Adds new assignments, follows date changes, and ticks off ones that now have a score.
-// Skips assignments that already have a score, or were due more than two weeks ago.
-function applyMylab(records, className) {
-  const column = currentBoard()?.columns[0];
-  if (!column) return { added: 0, updated: 0, done: 0 };
-  const cutoff = addDays(today(), -14);
-  let tag = null;
-  let added = 0;
-  let updated = 0;
-  let done = 0;
-
-  for (const r of records) {
-    const id = `mylab:${slug(className)}:${r.key}`;
-    if (db.dismissed.includes(id)) continue;
-
-    const existing = db.tasks.find((t) => t.externalId === id);
-    if (existing) {
-      if (existing.due === existing.sync?.due && existing.due !== r.due) {
-        existing.due = r.due;
-        updated++;
-      }
-      if (r.scored && !existing.sync?.scored && !existing.done) {
-        setTaskDone(existing, true);
-        done++;
-      }
-      existing.sync = { due: r.due, scored: r.scored };
-      continue;
-    }
-
-    if (r.scored || r.due < cutoff) continue;
-    tag ??= findOrCreateTag(className);
-    addTask({
-      title: `${className}: ${r.title}`,
-      notes: mylabNotes(r),
-      due: r.due,
-      columnId: column.id,
-      tagIds: [tag.id],
-      externalId: id,
-      sync: { due: r.due, scored: r.scored }
-    });
-    added++;
-  }
-  return { added, updated, done };
-}
-
-export function syncMylabText(text) {
-  const className = (settings.mylabClass || '').trim() || 'AP Calc';
-  const records = parseMylab(text ?? '');
-  if (!records.length) {
-    mylab.message = "Couldn't find any assignments in that text. Copy the assignment table from MyLab and try again.";
-    return;
-  }
-  const { added, updated, done } = applyMylab(records, className);
-  mylab.message =
-    added || updated || done
-      ? `${added} new, ${updated} date change${updated === 1 ? '' : 's'}, ${done} marked done`
-      : 'Up to date';
-}
-
-export async function syncMylabClipboard() {
-  try {
-    syncMylabText(await storage.readClipboard());
-  } catch (e) {
-    mylab.message = "Couldn't read the clipboard. Paste the text into the box instead.";
   }
 }

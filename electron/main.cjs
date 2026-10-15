@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, net, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -96,8 +96,6 @@ ipcMain.handle('ics:fetch', async (_event, rawUrl) => {
     clearTimeout(timer);
   }
 });
-
-ipcMain.handle('clipboard:read', () => clipboard.readText());
 
 app.whenReady().then(createWindow);
 

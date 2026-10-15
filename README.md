@@ -9,10 +9,9 @@ Trello-style boards with a calendar built in. Click a day to see its to-do list,
 - **Boards** with draggable cards and your own columns. Checking a task moves it to the **Done** column (a column named Done, Complete, or Finished); unchecking puts it back.
 - **Calendar** with every task on its due date. Click a day for its checklist, double-click for that day's board. The app can open straight to today's board.
 - **Colors and tags**: any color per task, saved colors you can reuse, and your own tags. Drag a tag from the top bar onto a task to apply it.
-- **Repeating tasks**: every day, every N days, certain weekdays, or a rotation (like a workout cycle). Missed one? Push the whole schedule back a day.
+- **Repeating tasks**: every day, every N days, certain weekdays, or a rotation (like a workout cycle). Edit one any time, or push the whole schedule back a day if you missed one.
 - **Themes**: pick a preset (Midnight, Nord, Dracula, Gruvbox, Catppuccin, Tokyo Night, and more, including light ones) or set your own four colors. Settings, then Preferences.
 - **Schoology import**: assignments from your Schoology calendar link (read-only, updates when teachers change dates).
-- **Pearson MyLab import**: copy the assignment table from MyLab and click sync; re-run it whenever dates change.
 - **Mouse back button** steps back: closes a dialog, returns from a day's board to the calendar, and so on.
 
 ## Install
@@ -67,8 +66,6 @@ To move to a new computer, copy that folder across.
 ## Connecting your classes
 
 **Schoology**: in Schoology open Settings, find "Share your Schoology Calendar", enable it, and copy the link. In TaskBoard open Settings, then Schoology, and paste it. It syncs when the app opens and hourly while it's running. Your own edits (done, colors, tags, notes) are never overwritten.
-
-**Pearson MyLab Math**: MyLab has no calendar feed. On its assignments page copy the table, then in TaskBoard open Settings, then Pearson MyLab, and click **Paste from clipboard and sync**. It adds new assignments, follows date changes, and marks assignments done once they have a score. Run it again whenever dates change.
 
 ## Project layout
 
