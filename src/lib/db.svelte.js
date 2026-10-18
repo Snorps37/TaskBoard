@@ -28,6 +28,7 @@ export const db = $state({
   series: [],
   dismissed: [],
   savedColors: [],
+  collapsedGroups: [], // names of task groups shown folded up
   currentBoardId: null
 });
 
@@ -157,7 +158,7 @@ export function removeColumn(id) {
 
 // ---- tasks ----
 export function addTask(fields) {
-  const task = { id: uid(), title: '', notes: '', due: '', time: '', color: '', done: false, tagIds: [], ...fields };
+  const task = { id: uid(), title: '', notes: '', due: '', time: '', color: '', group: '', done: false, tagIds: [], ...fields };
   db.tasks.push(task);
   return task;
 }
@@ -265,6 +266,33 @@ export function toggleTag(task, tagId) {
   else task.tagIds.push(tagId);
 }
 
+// ---- task groups ----
+// Tasks that share a group name (like "Vitamins") show as one card on each day. A group is just the name.
+const groupKey = (name) => (name ?? '').trim().toLowerCase();
+
+export function groupNames() {
+  const names = new Map();
+  for (const x of [...db.series, ...db.tasks]) {
+    const k = groupKey(x.group);
+    if (k && !names.has(k)) names.set(k, x.group.trim());
+  }
+  return [...names.values()].sort((a, b) => a.localeCompare(b));
+}
+
+export const isCollapsed = (name) => db.collapsedGroups.includes(groupKey(name));
+
+export function toggleGroup(name) {
+  const k = groupKey(name);
+  const i = db.collapsedGroups.indexOf(k);
+  if (i >= 0) db.collapsedGroups.splice(i, 1);
+  else db.collapsedGroups.push(k);
+}
+
+// Checks or unchecks every task in a group.
+export function setGroupDone(tasks, value) {
+  for (const t of [...tasks]) if (t.done !== value) setTaskDone(t, value);
+}
+
 // ---- saved colors ----
 export function addColor(hex) {
   const h = hex.toLowerCase();
@@ -331,6 +359,7 @@ export function extendSeries(untilDate) {
           due: s.nextDate,
           time: s.time ?? '',
           color: s.color,
+          group: s.group ?? '',
           tagIds: [...s.tagIds],
           columnId: s.columnId,
           seriesId: s.id
@@ -348,6 +377,7 @@ export function addSeries(fields) {
     title: '',
     notes: '',
     color: '',
+    group: '',
     tagIds: [],
     columnId: currentBoard()?.columns[0]?.id,
     rule: 'daily',
@@ -367,7 +397,7 @@ export function addSeries(fields) {
 }
 
 // Edits a repeating task. Finished and past tasks are never touched.
-// Look-only changes (name, color, tags, time) update the upcoming tasks in place, so ones you moved by hand stay put.
+// Look-only changes (name, color, tags, time, group) update the upcoming tasks in place, so ones you moved by hand stay put.
 // Changing the schedule itself (rule, days, rotation, first or last day) rebuilds the upcoming tasks from the rule.
 export function updateSeries(id, fields) {
   const s = db.series.find((x) => x.id === id);
@@ -381,7 +411,13 @@ export function updateSeries(id, fields) {
   const scheduleChanged =
     ['rule', 'every', 'days', 'steps', 'start', 'until'].some(differs) ||
     (differs('title') && (fields.rule ?? s.rule) === 'cycle');
-  const changed = { title: differs('title'), color: differs('color'), time: differs('time'), tagIds: differs('tagIds') };
+  const changed = {
+    title: differs('title'),
+    color: differs('color'),
+    time: differs('time'),
+    tagIds: differs('tagIds'),
+    group: differs('group')
+  };
 
   Object.assign(s, fields, { tagIds: [...(fields.tagIds ?? s.tagIds)] });
 
@@ -392,6 +428,7 @@ export function updateSeries(id, fields) {
       if (changed.color) t.color = s.color;
       if (changed.time) t.time = s.time ?? '';
       if (changed.tagIds) t.tagIds = [...s.tagIds];
+      if (changed.group) t.group = s.group ?? '';
     }
     return;
   }

@@ -1,6 +1,6 @@
 <script>
   import {
-    db, ui, today, addSeries, updateSeries, removeSeries, pushSeries, describeSeries, toggleTag, WEEKDAYS
+    db, ui, today, addSeries, updateSeries, removeSeries, pushSeries, describeSeries, toggleTag, groupNames, WEEKDAYS
   } from './db.svelte.js';
   import ColorPicker from './ColorPicker.svelte';
   import { fade, scale, slide } from 'svelte/transition';
@@ -15,6 +15,7 @@
     until: '',
     time: '',
     color: '',
+    group: '',
     tagIds: []
   });
 
@@ -56,6 +57,7 @@
       until: draft.until,
       time: draft.time,
       color: draft.color,
+      group: draft.group.trim(),
       tagIds: [...draft.tagIds],
       days: [],
       steps: []
@@ -98,6 +100,7 @@
       until: s.until ?? '',
       time: s.time ?? '',
       color: s.color ?? '',
+      group: s.group ?? '',
       tagIds: [...s.tagIds]
     };
     editingId = s.id;
@@ -152,7 +155,7 @@
         <div class="series" style:--c={s.color || 'var(--neutral)'}>
           <div class="info">
             <strong>{s.title}</strong>
-            <span class="muted">{describeSeries(s)}</span>
+            <span class="muted">{describeSeries(s)}{#if s.group} · in {s.group}{/if}</span>
             <span class="muted">Next: {dayLabel(nextDue(s))}</span>
           </div>
           <div class="row">
@@ -227,6 +230,15 @@
         <div class="field">
           <span class="label">Time of day (optional)</span>
           <input type="time" bind:value={draft.time} />
+        </div>
+
+        <div class="field">
+          <span class="label">Group (optional)</span>
+          <input bind:value={draft.group} list="group-names" placeholder="Vitamins" />
+          <datalist id="group-names">
+            {#each groupNames() as n (n)}<option value={n}></option>{/each}
+          </datalist>
+          <small>Repeating tasks with the same group show as one card each day.</small>
         </div>
 
         <div class="field">

@@ -1,5 +1,6 @@
 <script>
   import { db, ui, ymd, today, matchesFilter, accentOf, extendSeries, fmtTime, byTime, moveTaskToDay } from './db.svelte.js';
+  import { groupTasks } from './overview.js';
   import { untrack } from 'svelte';
   import DayPanel from './DayPanel.svelte';
   import Board from './Board.svelte';
@@ -113,7 +114,7 @@
     {#key cursor.getTime()}
       <div class="grid" in:fly={{ x: dir * 28, duration: 170 }}>
         {#each cells as c (c.key)}
-          {@const list = byDay[c.key] ?? []}
+          {@const list = groupTasks(byDay[c.key] ?? [])}
           <div
             class="cell"
             role="button"
@@ -130,14 +131,23 @@
             ondrop={(e) => cellDrop(e, c)}>
             <span class="num">{c.date.getDate()}</span>
             <span class="items">
-              {#each list.slice(0, 3) as t (t.id)}
-                <span
-                  class="pill"
-                  class:done={t.done}
-                  style:--c={accentOf(t) || 'var(--neutral)'}
-                  draggable="true"
-                  ondragstart={(e) => startDrag(e, t)}
-                  ondragend={() => (ui.dragTaskId = null)}>{#if t.time}<b class="pt">{fmtTime(t.time)}</b> {/if}{t.title || 'Untitled'}</span>
+              {#each list.slice(0, 3) as e (e.key)}
+                {#if e.group}
+                  {@const done = e.items.filter((t) => t.done).length}
+                  <span
+                    class="pill"
+                    class:done={done === e.items.length}
+                    style:--c={accentOf(e.items[0]) || 'var(--neutral)'}>{e.group} <b class="pt">{done}/{e.items.length}</b></span>
+                {:else}
+                  {@const t = e.task}
+                  <span
+                    class="pill"
+                    class:done={t.done}
+                    style:--c={accentOf(t) || 'var(--neutral)'}
+                    draggable="true"
+                    ondragstart={(e) => startDrag(e, t)}
+                    ondragend={() => (ui.dragTaskId = null)}>{#if t.time}<b class="pt">{fmtTime(t.time)}</b> {/if}{t.title || 'Untitled'}</span>
+                {/if}
               {/each}
               {#if list.length > 3}<span class="more">+{list.length - 3} more</span>{/if}
             </span>

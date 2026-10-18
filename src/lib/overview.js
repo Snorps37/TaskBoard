@@ -49,3 +49,27 @@ export function trayTiles(t0, taskDue = '') {
     { key: 'week', kind: 'week', date: addDays(base, 7), i: -1 }
   ];
 }
+
+// Bundles tasks that share a group name (and day) into one entry, placed where the group's first task is.
+// Returns, in order: { key, task } for a task on its own, or { key, group, items } for 2+ tasks in a group.
+// A group with only one task that day just shows as that task.
+export function groupTasks(tasks) {
+  const entries = [];
+  const groups = new Map();
+  for (const t of tasks) {
+    const name = (t.group ?? '').trim();
+    if (!name) {
+      entries.push({ key: t.id, task: t });
+      continue;
+    }
+    const key = `g:${t.due ?? ''}:${name.toLowerCase()}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { key, group: name, items: [] };
+      groups.set(key, g);
+      entries.push(g);
+    }
+    g.items.push(t);
+  }
+  return entries.map((e) => (e.items?.length === 1 ? { key: e.items[0].id, task: e.items[0] } : e));
+}

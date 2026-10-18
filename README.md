@@ -10,6 +10,7 @@ Trello-style boards with a calendar built in. Click a day to see its to-do list,
 - **Calendar** with every task on its due date. Click a day for its checklist, double-click for that day's board. The app can open straight to today's board.
 - **Colors and tags**: any color per task, saved colors you can reuse, and your own tags. Drag a tag from the top bar onto a task to apply it.
 - **Repeating tasks**: every day, every N days, certain weekdays, or a rotation (like a workout cycle). Edit one any time, or push the whole schedule back a day if you missed one.
+- **Groups**: give tasks the same group name (like "Vitamins") and they show as one card per day, with a check-all box and a fold-up arrow. Each task in it can still be checked or moved on its own.
 - **Themes**: pick a preset (Midnight, Nord, Dracula, Gruvbox, Catppuccin, Tokyo Night, and more, including light ones) or set your own four colors. Settings, then Preferences.
 - **Schoology import**: assignments from your Schoology calendar link (read-only, updates when teachers change dates).
 - **Mouse back button** steps back: closes a dialog, returns from a day's board to the calendar, and so on.

@@ -1,7 +1,8 @@
 <script>
   import { db, ui, settings, today, addTask, currentBoard, matchesFilter, moveTaskToDay } from './db.svelte.js';
-  import { buildOverview } from './overview.js';
+  import { buildOverview, groupTasks } from './overview.js';
   import TaskRow from './TaskRow.svelte';
+  import TaskGroup from './TaskGroup.svelte';
   import { slide } from 'svelte/transition';
 
   const model = $derived(buildOverview(db.tasks, today(), matchesFilter));
@@ -69,7 +70,7 @@
             <button class="ghost" title="Moves one-off tasks to today. Repeating tasks stay where they are." onclick={moveOverdueToToday}>Move to today</button>
           </header>
           <div class="list">
-            {#each model.overdue as t (t.id)}<TaskRow {t} showDate compact={horizontal} />{/each}
+            {#each groupTasks(model.overdue) as e (e.key)}{@render entry(e, true)}{/each}
           </div>
         </section>
       {/if}
@@ -92,8 +93,8 @@
             {/if}
           </header>
           <div class="list">
-            {#each g.items as t (t.id)}
-              <TaskRow {t} compact={horizontal} />
+            {#each groupTasks(g.items) as e (e.key)}
+              {@render entry(e, false)}
             {:else}
               <p class="empty">Nothing planned</p>
             {/each}
@@ -108,7 +109,7 @@
             <span class="sub">{model.later.length}</span>
           </header>
           <div class="list">
-            {#each laterShown as t (t.id)}<TaskRow {t} showDate compact={horizontal} />{/each}
+            {#each groupTasks(laterShown) as e (e.key)}{@render entry(e, true)}{/each}
             {#if model.later.length > LATER_LIMIT}
               <button class="ghost more" onclick={() => (showAllLater = !showAllLater)}>
                 {showAllLater ? 'Show fewer' : `Show all ${model.later.length}`}
@@ -130,8 +131,8 @@
             <span class="sub">{model.undated.length}</span>
           </header>
           <div class="list">
-            {#each model.undated as t (t.id)}
-              <TaskRow {t} compact={horizontal} />
+            {#each groupTasks(model.undated) as e (e.key)}
+              {@render entry(e, false)}
             {:else}
               <p class="empty">Drop here to remove a task's date</p>
             {/each}
@@ -141,6 +142,14 @@
     </div>
   </div>
 </div>
+
+{#snippet entry(e, showDate)}
+  {#if e.task}
+    <TaskRow t={e.task} {showDate} compact={horizontal} />
+  {:else}
+    <TaskGroup name={e.group} items={e.items} {showDate} compact={horizontal} />
+  {/if}
+{/snippet}
 
 <style>
   /* Vertical: one long list, scrolling the whole page */

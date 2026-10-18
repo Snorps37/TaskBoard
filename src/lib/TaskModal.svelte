@@ -1,5 +1,5 @@
 <script>
-  import { db, ui, removeTask, toggleTag, pushSeries, describeSeries } from './db.svelte.js';
+  import { db, ui, removeTask, toggleTag, pushSeries, describeSeries, groupNames } from './db.svelte.js';
   import ColorPicker from './ColorPicker.svelte';
   import { fade, scale } from 'svelte/transition';
 
@@ -48,6 +48,14 @@
           {/each}
         </select>
       </div>
+    </div>
+
+    <div class="field">
+      <span class="label">Group (optional)</span>
+      <input bind:value={task.group} list="task-group-names" placeholder="Tasks with the same group show as one card" />
+      <datalist id="task-group-names">
+        {#each groupNames() as n (n)}<option value={n}></option>{/each}
+      </datalist>
     </div>
 
     <div class="field">

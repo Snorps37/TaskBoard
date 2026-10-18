@@ -1,8 +1,10 @@
 <script>
   import {
     db, ui, currentBoard, addTask, moveTask, addColumn, removeColumn, addBoard,
-    matchesFilter, accentOf, tagById, today, showsOnBoard, tagTask, setTaskDone, addDays, fmtTime, nowHM, modalOpen, moveTaskToDay
+    matchesFilter, accentOf, tagById, today, showsOnBoard, tagTask, setTaskDone, addDays, fmtTime, nowHM, modalOpen, moveTaskToDay,
+    isCollapsed, toggleGroup, setGroupDone
   } from './db.svelte.js';
+  import { groupTasks } from './overview.js';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
 
@@ -230,46 +232,52 @@
           </div>
 
           <div class="cards">
-            {#each db.tasks.filter((t) => t.columnId === col.id && matchesFilter(t) && inScope(t)) as t (t.id)}
-              <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-              <article
-                class="card"
-                class:colored={!!accentOf(t)}
-                class:done={t.done}
-                class:dragging={dragId === t.id}
-                class:before={dragId && overCard === t.id && dragId !== t.id}
-                class:tag-target={ui.dragTagId && tagOver === t.id}
-                style:--c={accentOf(t) || 'var(--neutral)'}
-                style:--tc={dragTag?.color ?? 'var(--accent)'}
-                draggable="true"
-                ondragstart={(e) => dragStart(e, t)}
-                ondragend={dragEnd}
-                ondragover={(e) => cardOver(e, t)}
-                ondrop={(e) => dropOnCard(e, t)}
-                onclick={() => (ui.editingId = t.id)}
-                animate:flip={{ duration: 160 }}
-                in:fly={{ y: 8, duration: 140 }}>
-                <input
-                  type="checkbox"
-                  aria-label="Done"
-                  checked={t.done}
-                  onchange={(e) => setTaskDone(t, e.currentTarget.checked)}
-                  onclick={(e) => e.stopPropagation()} />
-                <div class="body">
-                  <span class="title">{t.title || 'Untitled'}</span>
-                  {#if (t.due && (!day || t.time)) || t.tagIds.length}
-                    <div class="meta">
-                      {#if t.due && (!day || t.time)}
-                        <span class="due" class:late={isLate(t)}>{#if !day}{dueLabel(t.due)}{/if}{#if !day && t.time}, {/if}{#if t.time}{fmtTime(t.time)}{/if}</span>
+            {#each groupTasks(db.tasks.filter((t) => t.columnId === col.id && matchesFilter(t) && inScope(t))) as e (e.key)}
+              <div class="entry" animate:flip={{ duration: 160 }}>
+                {#if e.group}
+                  {@render groupCard(e)}
+                {:else}
+                  {@const t = e.task}
+                  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+                  <article
+                    class="card"
+                    class:colored={!!accentOf(t)}
+                    class:done={t.done}
+                    class:dragging={dragId === t.id}
+                    class:before={dragId && overCard === t.id && dragId !== t.id}
+                    class:tag-target={ui.dragTagId && tagOver === t.id}
+                    style:--c={accentOf(t) || 'var(--neutral)'}
+                    style:--tc={dragTag?.color ?? 'var(--accent)'}
+                    draggable="true"
+                    ondragstart={(e) => dragStart(e, t)}
+                    ondragend={dragEnd}
+                    ondragover={(e) => cardOver(e, t)}
+                    ondrop={(e) => dropOnCard(e, t)}
+                    onclick={() => (ui.editingId = t.id)}
+                    in:fly={{ y: 8, duration: 140 }}>
+                    <input
+                      type="checkbox"
+                      aria-label="Done"
+                      checked={t.done}
+                      onchange={(e) => setTaskDone(t, e.currentTarget.checked)}
+                      onclick={(e) => e.stopPropagation()} />
+                    <div class="body">
+                      <span class="title">{t.title || 'Untitled'}</span>
+                      {#if (t.due && (!day || t.time)) || t.tagIds.length}
+                        <div class="meta">
+                          {#if t.due && (!day || t.time)}
+                            <span class="due" class:late={isLate(t)}>{#if !day}{dueLabel(t.due)}{/if}{#if !day && t.time}, {/if}{#if t.time}{fmtTime(t.time)}{/if}</span>
+                          {/if}
+                          {#each t.tagIds as id (id)}
+                            {@const tg = tagById(id)}
+                            {#if tg}<span class="chip" style:--c={tg.color}>{tg.name}</span>{/if}
+                          {/each}
+                        </div>
                       {/if}
-                      {#each t.tagIds as id (id)}
-                        {@const tg = tagById(id)}
-                        {#if tg}<span class="chip" style:--c={tg.color}>{tg.name}</span>{/if}
-                      {/each}
                     </div>
-                  {/if}
-                </div>
-              </article>
+                  </article>
+                {/if}
+              </div>
             {/each}
           </div>
 
@@ -296,6 +304,59 @@
     {/key}
   {/if}
 </div>
+
+<!-- Tasks that share a group name: one card, with each task as a line you can check, open, or drag on its own. -->
+{#snippet groupCard(g)}
+  {@const done = g.items.filter((t) => t.done).length}
+  {@const open = !isCollapsed(g.group)}
+  {@const first = g.items[0]}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="card group"
+    class:colored={!!accentOf(first)}
+    class:done={done === g.items.length}
+    class:before={dragId && overCard === first.id && !g.items.some((t) => t.id === dragId)}
+    style:--c={accentOf(first) || 'var(--neutral)'}
+    ondragover={(e) => cardOver(e, first)}
+    in:fly={{ y: 8, duration: 140 }}>
+    <input
+      type="checkbox"
+      aria-label="All of {g.group} done"
+      checked={done === g.items.length}
+      onchange={(e) => setGroupDone(g.items, e.currentTarget.checked)} />
+    <div class="body">
+      <button class="group-head" aria-expanded={open} title={open ? 'Fold up' : 'Show tasks'} onclick={() => toggleGroup(g.group)}>
+        <span class="chev" class:open>›</span>
+        <span class="title">{g.group}</span>
+        <span class="count">{done}/{g.items.length}</span>
+      </button>
+      {#if open}
+        <ul class="members">
+          {#each g.items as t (t.id)}
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <li
+              class:done={t.done}
+              class:dragging={dragId === t.id}
+              class:before={dragId && overCard === t.id && dragId !== t.id && t.id !== first.id}
+              draggable="true"
+              ondragstart={(e) => {
+                e.stopPropagation();
+                dragStart(e, t);
+              }}
+              ondragend={dragEnd}
+              ondragover={(e) => cardOver(e, t)}>
+              <input type="checkbox" aria-label="Done" checked={t.done} onchange={(e) => setTaskDone(t, e.currentTarget.checked)} />
+              <button class="m-title" onclick={() => (ui.editingId = t.id)}>
+                {#if t.time && (!day || t.due === day)}<small class="due" class:late={isLate(t)}>{fmtTime(t.time)}</small>{/if}
+                <span>{t.title || 'Untitled'}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  </div>
+{/snippet}
 
 <style>
   .board { height: 100%; display: flex; flex-direction: column; }
@@ -355,4 +416,25 @@
   .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .due { font-size: 12px; color: var(--muted); }
   .due.late { color: var(--danger); }
+
+  .card.group { cursor: default; }
+  .card.group > input[type='checkbox'] { margin-top: 4px; }
+  .card.group .body { flex: 1; }
+  .group-head { display: flex; align-items: center; gap: 8px; padding: 0; text-align: left; background: none; border: 0; border-radius: 0; }
+  .group-head:hover { background: none; }
+  .group-head:active { transform: none; }
+  .group-head .title { font-weight: 600; }
+  .group-head .count { margin-left: auto; }
+  .chev { color: var(--muted); display: inline-block; width: 10px; transition: transform var(--fast); }
+  .chev.open { transform: rotate(90deg); }
+  .members { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .members li { display: flex; align-items: center; gap: 8px; padding: 3px 6px; margin: 0 -6px; border-radius: 6px; cursor: grab; }
+  .members li:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+  .members li.dragging { opacity: 0.4; }
+  .members li.before { box-shadow: 0 -2px 0 0 var(--accent); }
+  .members li input[type='checkbox'] { margin-top: 0; }
+  .members li.done span { text-decoration: line-through; color: var(--muted); }
+  .m-title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 0; text-align: left; background: none; border: 0; border-radius: 0; overflow-wrap: anywhere; }
+  .m-title:hover { background: none; }
+  .m-title:active { transform: none; }
 </style>

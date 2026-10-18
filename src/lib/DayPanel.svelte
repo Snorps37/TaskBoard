@@ -1,5 +1,7 @@
 <script>
   import { db, ui, addTask, currentBoard, matchesFilter, accentOf, tagById, tagTask, setTaskDone, fmtTime, byTime } from './db.svelte.js';
+  import { groupTasks } from './overview.js';
+  import TaskGroup from './TaskGroup.svelte';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
 
@@ -58,35 +60,42 @@
   <input placeholder="Add a task for this day" bind:value={title} onkeydown={(e) => e.key === 'Enter' && add()} />
 
   <ul>
-    {#each items as t (t.id)}
-      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-      <li
-        class:tag-target={ui.dragTagId && tagOver === t.id}
-        style:--c={accentOf(t) || 'var(--neutral)'}
-        style:--tc={dragTag?.color ?? 'var(--accent)'}
-        draggable="true"
-        ondragstart={(e) => {
-          ui.dragTaskId = t.id;
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', t.id);
-        }}
-        ondragend={() => (ui.dragTaskId = null)}
-        ondragover={(e) => overItem(e, t)}
-        ondrop={(e) => dropItem(e, t)}
-        animate:flip={{ duration: 150 }}
-        in:fly={{ y: 6, duration: 130 }}>
-        <input type="checkbox" aria-label="Done" checked={t.done} onchange={(e) => setTaskDone(t, e.currentTarget.checked)} />
-        <button class="task" class:done={t.done} onclick={() => (ui.editingId = t.id)}>
-          <span>{#if t.time}<small class="time">{fmtTime(t.time)}</small> {/if}{t.title || 'Untitled'}</span>
-          {#if t.tagIds.length}
-            <span class="tags">
-              {#each t.tagIds as id (id)}
-                {@const tg = tagById(id)}
-                {#if tg}<span class="chip" style:--c={tg.color}>{tg.name}</span>{/if}
-              {/each}
-            </span>
-          {/if}
-        </button>
+    {#each groupTasks(items) as e (e.key)}
+      <li animate:flip={{ duration: 150 }}>
+        {#if e.group}
+          <TaskGroup name={e.group} items={e.items} />
+        {:else}
+          {@const t = e.task}
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="item"
+            class:tag-target={ui.dragTagId && tagOver === t.id}
+            style:--c={accentOf(t) || 'var(--neutral)'}
+            style:--tc={dragTag?.color ?? 'var(--accent)'}
+            draggable="true"
+            ondragstart={(e) => {
+              ui.dragTaskId = t.id;
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', t.id);
+            }}
+            ondragend={() => (ui.dragTaskId = null)}
+            ondragover={(e) => overItem(e, t)}
+            ondrop={(e) => dropItem(e, t)}
+            in:fly={{ y: 6, duration: 130 }}>
+            <input type="checkbox" aria-label="Done" checked={t.done} onchange={(e) => setTaskDone(t, e.currentTarget.checked)} />
+            <button class="task" class:done={t.done} onclick={() => (ui.editingId = t.id)}>
+              <span>{#if t.time}<small class="time">{fmtTime(t.time)}</small> {/if}{t.title || 'Untitled'}</span>
+              {#if t.tagIds.length}
+                <span class="tags">
+                  {#each t.tagIds as id (id)}
+                    {@const tg = tagById(id)}
+                    {#if tg}<span class="chip" style:--c={tg.color}>{tg.name}</span>{/if}
+                  {/each}
+                </span>
+              {/if}
+            </button>
+          </div>
+        {/if}
       </li>
     {/each}
   </ul>
@@ -116,7 +125,7 @@
   .bar i { display: block; height: 100%; background: var(--accent); transition: width 200ms ease; }
 
   ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
-  li {
+  .item {
     --c: var(--neutral);
     display: flex;
     gap: 10px;
@@ -127,7 +136,7 @@
     border-left: 3px solid var(--c);
     border-radius: 10px;
   }
-  li.tag-target { outline: 2px solid var(--tc, var(--accent)); outline-offset: 1px; }
+  .item.tag-target { outline: 2px solid var(--tc, var(--accent)); outline-offset: 1px; }
   .task { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 0; text-align: left; background: none; border: 0; border-radius: 0; overflow-wrap: anywhere; }
   .task:hover { background: none; }
   .task.done > span:first-child { text-decoration: line-through; color: var(--muted); }
