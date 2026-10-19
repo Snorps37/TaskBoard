@@ -13,6 +13,7 @@ Trello-style boards with a calendar built in. Click a day to see its to-do list,
 - **Groups**: give tasks the same group name (like "Vitamins") and they show as one card per day, with a check-all box and a fold-up arrow. Each task in it can still be checked or moved on its own.
 - **Themes**: pick a preset (Midnight, Nord, Dracula, Gruvbox, Catppuccin, Tokyo Night, and more, including light ones) or set your own four colors. Settings, then Preferences.
 - **Schoology import**: assignments from your Schoology calendar link (read-only, updates when teachers change dates).
+- **Command bar**: press Tab (or Ctrl+K) and type where to go ("thursday", "oct 25", "settings", "upcoming"), or type a task like `do laundry thursday 4pm tag:personal` and press Enter to add it. Tags autocomplete after `tag:`.
 - **Mouse back button** steps back: closes a dialog, returns from a day's board to the calendar, and so on.
 
 ## Install

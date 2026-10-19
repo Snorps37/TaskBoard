@@ -15,6 +15,7 @@ export const ui = $state({
   showSeries: false,
   showSchoology: false,
   showPrefs: false,
+  showCommand: false,
   dragTagId: null,
   dragTaskId: null,
   toast: ''
@@ -78,7 +79,7 @@ export const fmtTime = (hm) =>
 // Sorts timed tasks by time, with untimed ones after (stable, so manual order is kept for ties).
 export const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99');
 export const modalOpen = () =>
-  !!(ui.editingId || ui.showTags || ui.showSeries || ui.showSchoology || ui.showPrefs);
+  !!(ui.editingId || ui.showTags || ui.showSeries || ui.showSchoology || ui.showPrefs || ui.showCommand);
 
 function seed() {
   return {

@@ -1,5 +1,5 @@
 <script>
-  import { db, ui, settings, init, storage, loadSettings, syncSchoology, today } from './lib/db.svelte.js';
+  import { db, ui, settings, init, storage, loadSettings, syncSchoology, today, modalOpen } from './lib/db.svelte.js';
   import { applyTheme, resolveTheme } from './lib/theme.js';
   import { onMount, tick, untrack } from 'svelte';
   import Upcoming from './lib/Upcoming.svelte';
@@ -10,6 +10,7 @@
   import SchoologyModal from './lib/SchoologyModal.svelte';
   import PreferencesModal from './lib/PreferencesModal.svelte';
   import DragTray from './lib/DragTray.svelte';
+  import CommandBar from './lib/CommandBar.svelte';
   import { VERSION } from './version.js';
   import { fade, fly } from 'svelte/transition';
 
@@ -107,7 +108,8 @@
 
   // Back closes the top-most thing first: dialogs, the menu, the calendar side panel, then the previous page.
   function goBack() {
-    if (ui.editingId) ui.editingId = null;
+    if (ui.showCommand) ui.showCommand = false;
+    else if (ui.editingId) ui.editingId = null;
     else if (ui.showTags) ui.showTags = false;
     else if (ui.showSeries) ui.showSeries = false;
     else if (ui.showSchoology) ui.showSchoology = false;
@@ -139,6 +141,22 @@
     tick().then(() => (restoring = false));
   }
 
+  // Tab (or Ctrl+K) opens the command bar, unless you're typing somewhere or a dialog is open.
+  function onKey(e) {
+    if (e.key === 'Escape') menuOpen = false;
+    if (modalOpen()) return;
+    const el = e.target;
+    const typing =
+      el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type !== 'checkbox'));
+    const ctrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k';
+    const tab = e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && !typing;
+    if (ctrlK || tab) {
+      e.preventDefault();
+      menuOpen = false;
+      ui.showCommand = true;
+    }
+  }
+
   function onMouseUp(e) {
     if (e.button === 3) {
       e.preventDefault();
@@ -157,7 +175,7 @@
     ui.dragTagId = null;
   }}
   onmousedown={(e) => (e.button === 3 || e.button === 4) && e.preventDefault()}
-  onkeydown={(e) => e.key === 'Escape' && (menuOpen = false)} />
+  onkeydown={onKey} />
 
 {#if db.loaded}
   <div class="app">
@@ -170,6 +188,9 @@
         <button class:active={ui.view === 'board'} onclick={() => (ui.view = 'board')}>Upcoming</button>
         <button class:active={ui.view === 'calendar'} onclick={() => { ui.view = 'calendar'; ui.dayBoard = null; }}>Calendar</button>
       </nav>
+      <button class="ghost go" title="Go to a day or page, or add a task (Tab)" onclick={() => (ui.showCommand = true)}>
+        Go to or add… <kbd>Tab</kbd>
+      </button>
       <div class="spacer"></div>
       <div class="filters">
         {#each db.tags as t (t.id)}
@@ -218,6 +239,7 @@
     {#if ui.showSeries}<SeriesManager />{/if}
     {#if ui.showSchoology}<SchoologyModal />{/if}
     {#if ui.showPrefs}<PreferencesModal />{/if}
+    {#if ui.showCommand}<CommandBar />{/if}
     {#if ui.dragTaskId}<DragTray />{/if}
     {#if ui.toast}
       <div class="toast-wrap">
@@ -244,6 +266,8 @@
   .tabs button { border: none; background: transparent; padding: 5px 14px; border-radius: 7px; color: var(--muted); }
   .tabs button:hover { background: var(--surface-2); color: var(--text); }
   .tabs button.active { background: var(--surface-3); color: var(--text); }
+  .go { display: flex; align-items: center; gap: 8px; }
+  .go kbd { font: inherit; font-size: 11px; padding: 0 5px; border: 1px solid var(--border-strong); border-radius: 4px; }
   .filters { display: flex; gap: 6px; align-items: center; }
   .toast-wrap { position: fixed; left: 0; right: 0; bottom: 28px; display: flex; justify-content: center; pointer-events: none; z-index: 60; }
   .toast { padding: 8px 16px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 999px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
