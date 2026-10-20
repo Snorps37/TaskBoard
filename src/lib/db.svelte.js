@@ -481,7 +481,12 @@ export const settings = $state({
   theme: 'midnight',
   customThemes: [], // your saved themes: [{ id, name, bg, surface, text, accent }]
   startup: 'today', // 'today' (today's board) | 'board' (Upcoming) | 'calendar'
-  upcomingLayout: 'horizontal' // 'horizontal' (columns) | 'vertical' (list)
+  upcomingLayout: 'horizontal', // 'horizontal' (columns) | 'vertical' (list)
+  remindBefore: 10, // minutes before a timed task to notify you; -1 turns reminders off
+  dailySummary: '08:00', // time of the "today's tasks" notification; '' turns it off
+  keepInTray: window.api?.platform === 'win32', // desktop: closing the window keeps the app running for reminders
+  openAtLogin: false, // desktop: start (in the tray) when you sign in
+  autoUpdate: true // desktop: check GitHub for new versions and install them
 });
 export const sync = $state({ busy: false, message: '' });
 

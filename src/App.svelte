@@ -12,6 +12,8 @@
   import DragTray from './lib/DragTray.svelte';
   import CommandBar from './lib/CommandBar.svelte';
   import { VERSION } from './version.js';
+  import { startReminders } from './lib/reminders.js';
+  import { update, checkForUpdates, installUpdate } from './lib/updates.svelte.js';
   import { fade, fly } from 'svelte/transition';
 
   let timer;
@@ -32,6 +34,22 @@
   onMount(() => {
     const id = setInterval(syncSchoology, 60 * 60 * 1000);
     return () => clearInterval(id);
+  });
+  onMount(startReminders);
+
+  // Desktop: tell the window whether closing it should keep the app running in the tray.
+  $effect(() => {
+    if (settings.loaded) window.api?.setKeepInTray(settings.keepInTray);
+  });
+  // Desktop: look for a new version shortly after start and every 6 hours.
+  $effect(() => {
+    if (!settings.loaded || !settings.autoUpdate) return;
+    const first = setTimeout(() => checkForUpdates(true), 10 * 1000);
+    const id = setInterval(() => checkForUpdates(true), 6 * 60 * 60 * 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
   });
 
   // Save a moment after the last change.
@@ -241,6 +259,18 @@
     {#if ui.showPrefs}<PreferencesModal />{/if}
     {#if ui.showCommand}<CommandBar />{/if}
     {#if ui.dragTaskId}<DragTray />{/if}
+    {#if (update.state === 'ready' || update.state === 'available') && !update.dismissed}
+      <div class="update" role="status" in:fly={{ y: 12, duration: 160 }} out:fade={{ duration: 120 }}>
+        {#if update.state === 'ready'}
+          <span>TaskBoard {update.version} is ready to install.</span>
+          <button class="primary" onclick={installUpdate}>Restart now</button>
+        {:else}
+          <span>TaskBoard {update.version} is out.</span>
+          <button class="primary" onclick={() => window.open(update.url)}>Download</button>
+        {/if}
+        <button class="ghost" onclick={() => (update.dismissed = true)}>Later</button>
+      </div>
+    {/if}
     {#if ui.toast}
       <div class="toast-wrap">
         <div class="toast" role="status" in:fly={{ y: 12, duration: 140 }} out:fade={{ duration: 120 }}>{ui.toast}</div>
@@ -271,6 +301,20 @@
   .filters { display: flex; gap: 6px; align-items: center; }
   .toast-wrap { position: fixed; left: 0; right: 0; bottom: 28px; display: flex; justify-content: center; pointer-events: none; z-index: 60; }
   .toast { padding: 8px 16px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 999px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
+  .update {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px 10px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  }
   .menu-wrap { position: relative; }
   .menu {
     position: absolute;

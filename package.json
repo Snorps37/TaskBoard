@@ -38,6 +38,13 @@
       "build/icon.png",
       "package.json"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Snorps37",
+        "repo": "TaskBoard"
+      }
+    ],
     "win": {
       "target": [
         "nsis",
@@ -47,14 +54,16 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "TaskBoard-Setup-${version}.${ext}"
     },
     "linux": {
       "target": [
         "AppImage"
       ],
       "category": "Office",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "artifactName": "TaskBoard-${version}.${ext}"
     },
     "mac": {
       "target": [
@@ -62,6 +71,12 @@
       ],
       "category": "public.app-category.productivity",
       "icon": "build/icon.png"
+    },
+    "portable": {
+      "artifactName": "TaskBoard-Portable-${version}.${ext}"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

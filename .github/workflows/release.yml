@@ -25,8 +25,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx electron-builder --publish never
+      # latest*.yml and the .blockmap files are what installed copies read to find and download updates.
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             release/*.exe
             release/*.AppImage
+            release/*.blockmap
+            release/latest*.yml

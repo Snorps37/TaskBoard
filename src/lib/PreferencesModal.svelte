@@ -1,6 +1,9 @@
 <script>
-  import { ui, settings, saveSettings, uid } from './db.svelte.js';
+  import { ui, settings, saveSettings, uid, isDesktop } from './db.svelte.js';
   import { PRESETS, resolveTheme } from './theme.js';
+  import { canNotify } from './reminders.js';
+  import { update, checkForUpdates } from './updates.svelte.js';
+  import { VERSION } from '../version.js';
   import { fade, scale } from 'svelte/transition';
 
   const FIELDS = [
@@ -15,6 +18,34 @@
   const isHex = (v) => /^#[0-9a-f]{6}$/i.test(v);
 
   const close = () => (ui.showPrefs = false);
+
+  // ---- notifications ----
+  const REMIND = [
+    [-1, 'Off'],
+    [0, 'At the time'],
+    [5, '5 minutes before'],
+    [10, '10 minutes before'],
+    [15, '15 minutes before'],
+    [30, '30 minutes before'],
+    [60, '1 hour before']
+  ];
+  // Browsers ask before showing notifications; the desktop app is always allowed.
+  let permission = $state(canNotify() ? Notification.permission : 'unsupported');
+  async function allowNotifications() {
+    permission = await Notification.requestPermission();
+  }
+  const canStartAtLogin = ['win32', 'darwin'].includes(window.api?.platform);
+
+  const updateText = $derived(
+    {
+      checking: 'Checking…',
+      none: "You're on the latest version.",
+      downloading: `Downloading ${update.version}… ${update.percent}%`,
+      ready: `${update.version} is ready. It installs when you restart.`,
+      available: `${update.version} is out. This copy can't update itself, so download it from GitHub.`,
+      error: `Could not check: ${update.message}`
+    }[update.state] ?? ''
+  );
 
   function choose(id) {
     settings.theme = id;
@@ -131,6 +162,78 @@
     </div>
 
     <div class="field">
+      <span class="label">Reminders for tasks with a time</span>
+      <select bind:value={settings.remindBefore} onchange={saveSettings}>
+        {#each REMIND as [value, label] (value)}
+          <option {value}>{label}</option>
+        {/each}
+      </select>
+      <label class="check">
+        <input
+          type="checkbox"
+          checked={!!settings.dailySummary}
+          onchange={(e) => {
+            settings.dailySummary = e.currentTarget.checked ? '08:00' : '';
+            saveSettings();
+          }} />
+        <span>A morning list of the day's tasks at</span>
+        <input type="time" class="time" disabled={!settings.dailySummary} bind:value={settings.dailySummary} onchange={saveSettings} />
+      </label>
+      {#if permission === 'default' || permission === 'denied'}
+        <div class="row">
+          <span class="muted">This browser needs your permission to show notifications.</span>
+          <button onclick={allowNotifications} disabled={permission === 'denied'}>
+            {permission === 'denied' ? 'Blocked in browser settings' : 'Allow notifications'}
+          </button>
+        </div>
+      {:else if permission === 'unsupported'}
+        <span class="muted">This browser can't show notifications.</span>
+      {:else if !isDesktop}
+        <small class="muted">Reminders only arrive while this tab is open.</small>
+      {/if}
+    </div>
+
+    {#if isDesktop}
+      <div class="field">
+        <span class="label">Running in the background</span>
+        <label class="check">
+          <input type="checkbox" bind:checked={settings.keepInTray} onchange={saveSettings} />
+          <span>Keep running in the tray when the window is closed, so reminders still arrive</span>
+        </label>
+        {#if canStartAtLogin}
+          <label class="check">
+            <input
+              type="checkbox"
+              bind:checked={settings.openAtLogin}
+              onchange={() => {
+                window.api.setOpenAtLogin(settings.openAtLogin);
+                saveSettings();
+              }} />
+            <span>Start in the tray when I sign in</span>
+          </label>
+        {/if}
+      </div>
+
+      <div class="field">
+        <span class="label">Updates</span>
+        <div class="row">
+          <span>Version {VERSION}</span>
+          <span class="spacer"></span>
+          <button
+            onclick={() => checkForUpdates()}
+            disabled={update.state === 'checking' || update.state === 'downloading' || update.state === 'ready'}>
+            Check for updates
+          </button>
+        </div>
+        {#if updateText}<span class="muted">{updateText}</span>{/if}
+        <label class="check">
+          <input type="checkbox" bind:checked={settings.autoUpdate} onchange={saveSettings} />
+          <span>Check for updates automatically</span>
+        </label>
+      </div>
+    {/if}
+
+    <div class="field">
       <span class="label">Upcoming layout</span>
       <select bind:value={settings.upcomingLayout} onchange={saveSettings}>
         <option value="horizontal">Horizontal (a column for each day)</option>
@@ -157,4 +260,6 @@
   .crow { display: grid; grid-template-columns: 1fr 44px 96px; gap: 10px; align-items: center; }
   .crow input[type='color'] { width: 44px; height: 30px; padding: 2px; cursor: pointer; }
   .hex { font-variant-numeric: tabular-nums; }
+  .check { display: flex; gap: 10px; align-items: flex-start; }
+  .check .time { width: auto; padding: 2px 6px; margin-top: -3px; }
 </style>

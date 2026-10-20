@@ -14,14 +14,18 @@ Trello-style boards with a calendar built in. Click a day to see its to-do list,
 - **Themes**: pick a preset (Midnight, Nord, Dracula, Gruvbox, Catppuccin, Tokyo Night, and more, including light ones) or set your own four colors. Settings, then Preferences.
 - **Schoology import**: assignments from your Schoology calendar link (read-only, updates when teachers change dates).
 - **Command bar**: press Tab (or Ctrl+K) and type where to go ("thursday", "oct 25", "settings", "upcoming"), or type a task like `do laundry thursday 4pm tag:personal` and press Enter to add it. Tags autocomplete after `tag:`.
+- **Reminders**: a desktop notification before each task that has a time (5 minutes to an hour ahead, or right at the time), plus an optional morning list of the day's tasks. Click one to jump to the task. On Windows the app keeps running in the tray when you close it, so reminders still arrive; you can also have it start when you sign in. All of this is in Preferences.
+- **Automatic updates**: the Windows installer and the Linux AppImage download new versions from GitHub in the background and install them when you restart.
 - **Mouse back button** steps back: closes a dialog, returns from a day's board to the calendar, and so on.
 
 ## Install
 
 ### Windows (easiest)
 
-1. Open the **Releases** page of this repository and download `TaskBoard Setup x.y.z.exe` (installer) or `TaskBoard x.y.z.exe` (portable, no install).
+1. Open the **Releases** page of this repository and download `TaskBoard-Setup-x.y.z.exe` (installer) or `TaskBoard-Portable-x.y.z.exe` (portable, no install).
 2. Run it. Windows may show a "Windows protected your PC" screen because the app isn't code-signed. Click **More info**, then **Run anyway**.
+
+The installed version updates itself: when a new release is out it downloads in the background, shows a "Restart now" button, and otherwise installs the next time you quit. The portable version can't replace itself, so it tells you when a new version is out and links to the download.
 
 ### From source (Windows, macOS, or Linux)
 
@@ -69,9 +73,19 @@ To move to a new computer, copy that folder across.
 
 **Schoology**: in Schoology open Settings, find "Share your Schoology Calendar", enable it, and copy the link. In TaskBoard open Settings, then Schoology, and paste it. It syncs when the app opens and hourly while it's running. Your own edits (done, colors, tags, notes) are never overwritten.
 
+## Releasing a new version
+
+```bash
+npm version minor        # or patch; bumps package.json and creates the v-tag
+git push --follow-tags
+```
+
+The Release workflow builds the Windows and Linux apps and attaches them, along with `latest.yml` / `latest-linux.yml`, to a GitHub Release. Installed copies check that release every 6 hours (and shortly after starting) and update themselves. Don't mark the release as a draft or pre-release, or the updater won't see it.
+
 ## Project layout
 
-- `electron/` window creation, saving data, fetching calendar feeds
+- `electron/` window creation, tray, saving data, fetching calendar feeds; `updater.cjs` handles updates
+- `src/lib/reminders.js` task reminder notifications
 - `src/lib/db.svelte.js` all app state and logic (boards, tasks, repeating tasks, imports)
 - `src/lib/*.svelte` the screens: `Board`, `Calendar`, `DayPanel`, `TaskModal`, `SeriesManager`, `PreferencesModal`, and so on
 - `src/lib/theme.js` theme presets; `src/app.css` the derived color palette
