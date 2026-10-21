@@ -226,7 +226,7 @@
           <div class="col-head">
             <input class="col-name" aria-label="Column name" bind:value={col.name} />
             <span class="count">{db.tasks.filter((t) => t.columnId === col.id && inScope(t)).length}</span>
-            {#if !day && board.columns.length > 1}
+            {#if board.columns.length > 1}
               <button class="ghost" title="Delete column" aria-label="Delete column" onclick={() => deleteColumn(col)}>✕</button>
             {/if}
           </div>
