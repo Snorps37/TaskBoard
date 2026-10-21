@@ -4,6 +4,7 @@
   import { fade, fly } from 'svelte/transition';
 
   // Tab opens this bar. Type where to go ("thursday", "settings", "upcoming"),
+  // search your tasks by name or notes ("essay"),
   // or type a task ("do laundry thursday 4pm tag:personal") and press Enter to add it.
 
   let query = $state('');
@@ -62,6 +63,30 @@
     return label === q ? 3 : label.startsWith(q) ? 2 : 1;
   }
 
+  // Tasks where every word you typed shows up in the title, notes or group.
+  // Unfinished ones first, then the ones dated nearest today.
+  function findTasks(words) {
+    const now = today();
+    const dist = (t) => (t.due ? Math.abs(new Date(t.due) - new Date(now)) : Infinity);
+    return db.tasks
+      .filter((t) => {
+        const text = [t.title, t.notes, t.group].join(' ').toLowerCase();
+        return words.every((w) => text.includes(w));
+      })
+      .sort((a, b) => a.done - b.done || dist(a) - dist(b))
+      .slice(0, 8)
+      .map((t) => ({
+        label: t.title,
+        kind: 'Task',
+        hint: t.due ? dayLabel(t.due) + (t.time ? ` ${fmtTime(t.time)}` : '') : 'No date',
+        done: t.done,
+        run: () => {
+          if (t.due) openDay(t.due);
+          ui.editingId = t.id;
+        }
+      }));
+  }
+
   // The tag being typed at the end ("tag:pe"), so it can be completed.
   const tagPart = $derived(/(?:^|\s)tag:(\S*)$/i.exec(query)?.[1] ?? null);
   const tagSuggestions = $derived(
@@ -90,6 +115,7 @@
     if (p.due && !p.title && !p.tagIds.length && !p.newTags.length && !out.some((x) => x.day === p.due)) {
       out.unshift({ label: longDay(p.due), kind: 'Day', run: () => openDay(p.due) });
     }
+    if (query.trim().length >= 2) out.push(...findTasks(words));
     if (p.title) out.push({ kind: 'Add task', add: p });
     return out;
   });
@@ -165,8 +191,8 @@
       onkeydown={onKey}
       spellcheck="false"
       autocomplete="off"
-      aria-label="Go to or add a task"
-      placeholder="Go to a day or page, or add a task: do laundry thursday 4pm tag:personal" />
+      aria-label="Go to, find or add a task"
+      placeholder="Go to a day or page, find a task, or add one: do laundry thursday 4pm tag:personal" />
 
     {#if results.length}
       <div class="results" role="listbox" bind:this={listEl}>
@@ -192,7 +218,7 @@
             {:else if r.color}
               <span class="main"><span class="chip" style:--c={r.color}>{r.complete ? r.label : r.label.replace(/^Show only /, '')}</span>{#if !r.complete}<span class="muted">only</span>{/if}</span>
             {:else}
-              <span class="main">{r.label}{#if r.hint}<span class="muted">{r.hint}</span>{/if}</span>
+              <span class="main" class:done={r.done}>{r.label}{#if r.hint}<span class="muted">{r.hint}</span>{/if}</span>
             {/if}
             <span class="kind">{r.kind}</span>
           </button>
@@ -228,6 +254,7 @@
   .result.active { background: var(--surface-3); }
   .main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .title { font-weight: 600; }
+  .main.done { text-decoration: line-through; color: var(--muted); }
   .kind { font-size: 12px; color: var(--muted); flex: none; }
   .chip.new { border-style: dashed; }
   .keys { display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--border); font-size: 12px; flex-wrap: wrap; }
