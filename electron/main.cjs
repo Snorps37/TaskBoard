@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, net, Tray, Menu, nativeImage } = req
 const path = require('path');
 const fs = require('fs');
 const updater = require('./updater.cjs');
+const { saveData } = require('./persistence.cjs');
 
 // Same data folder in development and in installed builds (Linux: ~/.config/taskboard,
 // Windows: %APPDATA%\taskboard, macOS: ~/Library/Application Support/taskboard).
@@ -97,11 +98,7 @@ ipcMain.handle('db:load', () => {
 });
 
 ipcMain.handle('db:save', (_event, json) => {
-  const file = dataFile();
-  const tmp = file + '.tmp';
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(tmp, json);
-  fs.renameSync(tmp, file);
+  saveData(dataFile(), json);
   return true;
 });
 

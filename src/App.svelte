@@ -1,5 +1,5 @@
 <script>
-  import { db, ui, settings, init, storage, loadSettings, syncSchoology, today, modalOpen } from './lib/db.svelte.js';
+  import { db, ui, settings, init, storage, loadSettings, syncSchoology, today, modalOpen, refreshDay } from './lib/db.svelte.js';
   import { applyTheme, resolveTheme } from './lib/theme.js';
   import { onMount, tick, untrack } from 'svelte';
   import Upcoming from './lib/Upcoming.svelte';
@@ -14,7 +14,42 @@
   import { VERSION } from './version.js';
   import { startReminders } from './lib/reminders.js';
   import { update, checkForUpdates, installUpdate } from './lib/updates.svelte.js';
+  import { createHistory } from './lib/history.js';
   import { fade, fly } from 'svelte/transition';
+
+  const history = createHistory();
+  const historyKeys = ['boards', 'tasks', 'tags', 'series', 'dismissed', 'savedColors', 'collapsedGroups'];
+  const snapshot = () => JSON.stringify(Object.fromEntries(historyKeys.map((key) => [key, db[key]])));
+  $effect(() => {
+    if (db.loaded) history.record(snapshot());
+  });
+  function restoreHistory(redo = false) {
+    // Capture an action even if its reactive effect has not run yet.
+    history.record(snapshot());
+    const saved = redo ? history.redo() : history.undo();
+    if (!saved) return;
+    Object.assign(db, JSON.parse(saved));
+    ui.editingId = null;
+    ui.dragTaskId = null;
+    ui.dragTagId = null;
+    ui.toast = redo ? 'Redone' : 'Undone';
+  }
+  onMount(() => {
+    function refresh() {
+      const previous = today();
+      if (refreshDay() && ui.dayBoard === previous) ui.dayBoard = today();
+    }
+    // Also catches clock changes and wake from sleep; focus refreshes immediately.
+    const timer = setInterval(refresh, 1000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    refresh();
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  });
 
   let timer;
   let pending = null;
@@ -91,7 +126,7 @@
 
   // ---- Settings menu ----
   let menuOpen = $state(false);
-  let menuEl;
+  let menuEl = $state();
   const menuItems = [
     { label: 'Preferences', open: () => (ui.showPrefs = true) },
     { label: 'Repeating tasks', open: () => (ui.showSeries = true) },
@@ -162,10 +197,25 @@
   // Tab (or Ctrl+K) opens the command bar, unless you're typing somewhere or a dialog is open.
   function onKey(e) {
     if (e.key === 'Escape') menuOpen = false;
-    if (modalOpen()) return;
     const el = e.target;
     const typing =
       el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type !== 'checkbox'));
+    const modifier = e.ctrlKey || e.metaKey;
+    if (!typing && modifier && !e.altKey && ['z', 'y'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      restoreHistory(e.shiftKey || e.key.toLowerCase() === 'y');
+      return;
+    }
+    if (modalOpen()) return;
+    if (!typing && modifier && e.shiftKey && !e.altKey) {
+      const key = e.key.toLowerCase();
+      if (['t', 'u', 'c'].includes(key)) {
+        e.preventDefault();
+        ui.view = key === 'u' ? 'board' : 'calendar';
+        ui.dayBoard = key === 't' ? today() : null;
+        return;
+      }
+    }
     const ctrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k';
     const tab = e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && !typing;
     if (ctrlK || tab) {
@@ -259,16 +309,18 @@
     {#if ui.showPrefs}<PreferencesModal />{/if}
     {#if ui.showCommand}<CommandBar />{/if}
     {#if ui.dragTaskId}<DragTray />{/if}
-    {#if (update.state === 'ready' || update.state === 'available') && !update.dismissed}
+    {#if (update.state === 'downloading' || update.state === 'ready' || update.state === 'available') && !update.dismissed}
       <div class="update" role="status" in:fly={{ y: 12, duration: 160 }} out:fade={{ duration: 120 }}>
-        {#if update.state === 'ready'}
-          <span>TaskBoard {update.version} is ready to install.</span>
+        {#if update.state === 'downloading'}
+          <div class="download-status"><span>Downloading update · {update.percent}%</span><progress max="100" value={update.percent} aria-label="Update download progress"></progress></div>
+        {:else if update.state === 'ready'}
+          <span>TaskBoard {update.version} is ready. Restart to update.</span>
           <button class="primary" onclick={installUpdate}>Restart now</button>
         {:else}
           <span>TaskBoard {update.version} is out.</span>
           <button class="primary" onclick={() => window.open(update.url)}>Download</button>
         {/if}
-        <button class="ghost" onclick={() => (update.dismissed = true)}>Later</button>
+        {#if update.state !== 'downloading'}<button class="ghost" onclick={() => (update.dismissed = true)}>Later</button>{/if}
       </div>
     {/if}
     {#if ui.toast}
@@ -283,11 +335,15 @@
   .app { height: 100%; display: flex; flex-direction: column; }
   header {
     flex: none;
-    height: 56px;
+    min-height: 64px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    padding-bottom: 10px;
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 0 24px;
+    padding-left: 24px;
+    padding-right: 24px;
     border-bottom: 1px solid var(--border);
   }
   .brand { display: flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
@@ -298,7 +354,10 @@
   .tabs button.active { background: var(--surface-3); color: var(--text); }
   .go { display: flex; align-items: center; gap: 8px; }
   .go kbd { font: inherit; font-size: 11px; padding: 0 5px; border: 1px solid var(--border-strong); border-radius: 4px; }
-  .filters { display: flex; gap: 6px; align-items: center; }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; max-width: min(40vw, 560px); }
+  @media (max-width: 1100px) { .filters { order: 2; max-width: none; flex-basis: 100%; } header { gap: 10px; } }
+  .download-status { display: grid; gap: 6px; min-width: 230px; }
+  progress { width: 100%; height: 5px; accent-color: var(--accent); }
   .toast-wrap { position: fixed; left: 0; right: 0; bottom: 28px; display: flex; justify-content: center; pointer-events: none; z-index: 60; }
   .toast { padding: 8px 16px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 999px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
   .update {

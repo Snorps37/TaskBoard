@@ -1,11 +1,12 @@
 <script>
-  import { db, ui, today, addDays, addTask, addTag, currentBoard, fmtTime, tagById } from './db.svelte.js';
+  import { db, ui, today, addDays, addTask, addTag, currentBoard, fmtTime, tagById, groupNames } from './db.svelte.js';
   import { parseTask, compactTag } from './quickadd.js';
+  import { COMMANDS, COLORS, quote } from './slash.js';
   import { fade, fly } from 'svelte/transition';
 
   // Tab opens this bar. Type where to go ("thursday", "settings", "upcoming"),
   // search your tasks by name or notes ("essay"),
-  // or type a task ("do laundry thursday 4pm tag:personal") and press Enter to add it.
+  // or type a task ("do laundry tomorrow 4pm /tag personal /color blue") and press Enter to add it.
 
   let query = $state('');
   let sel = $state(0);
@@ -87,20 +88,29 @@
       }));
   }
 
-  // The tag being typed at the end ("tag:pe"), so it can be completed.
+  const optionPart = $derived(/(?:^|\s)\/(tag|color|group|date|time)\s+([^/\s]*)$/i.exec(query));
+  const commandPart = $derived(/(?:^|\s)\/([a-z]*)$/i.exec(query));
   const tagPart = $derived(/(?:^|\s)tag:(\S*)$/i.exec(query)?.[1] ?? null);
-  const tagSuggestions = $derived(
-    tagPart === null
-      ? []
-      : db.tags.filter((t) => compactTag(t.name).toLowerCase().startsWith(tagPart.toLowerCase()))
-  );
+  const completions = $derived.by(() => {
+    if (commandPart) return COMMANDS.filter((c) => c.name.startsWith(commandPart[1].toLowerCase()))
+      .map((c) => ({ kind: 'Option', label: '/' + c.name, hint: c.hint, completion: '/' + c.name + ' ', pattern: /\/[a-z]*$/i }));
+    const key = optionPart?.[1]?.toLowerCase();
+    const prefix = (optionPart?.[2] ?? tagPart ?? '').toLowerCase();
+    let values = [];
+    if (key === 'tag' || tagPart !== null) values = db.tags.map((t) => ({ label: t.name, color: t.color }));
+    if (key === 'color') values = [...Object.entries(COLORS).map(([label, color]) => ({ label, color })), ...db.savedColors.map((color) => ({ label: color, color })), { label: 'none' }];
+    if (key === 'group') values = groupNames().map((label) => ({ label }));
+    if (key === 'date') values = ['today', 'tomorrow', '"in 3 days"', '"next week"'].map((label) => ({ label }));
+    if (key === 'time') values = ['9am', 'noon', '4pm', '6pm'].map((label) => ({ label }));
+    return values.filter((v) => compactTag(v.label).toLowerCase().startsWith(compactTag(prefix)))
+      .map((v) => ({ ...v, kind: key || 'Tag', completion: tagPart !== null ? `tag:${compactTag(v.label)} ` : `/${key} ${quote(v.label.replace(/^"|"$/g, ''))} `,
+        pattern: tagPart !== null ? /tag:\S*$/i : /\/(tag|color|group|date|time)\s+[^/\s]*$/i }));
+  });
 
   const parsed = $derived(parseTask(query, db.tags));
 
   const results = $derived.by(() => {
-    if (tagSuggestions.length) {
-      return tagSuggestions.map((t) => ({ kind: 'Tag', label: t.name, color: t.color, complete: t }));
-    }
+    if (completions.length) return completions;
     const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (!words.length) return places.filter((p) => ['Today', 'Tomorrow', 'Upcoming', 'Calendar', 'Preferences'].includes(p.label));
 
@@ -112,11 +122,11 @@
 
     // A typed date on its own ("oct 25", "next fri") is a day to go to.
     const p = parsed;
-    if (p.due && !p.title && !p.tagIds.length && !p.newTags.length && !out.some((x) => x.day === p.due)) {
+    if (p.due && !p.errors.length && !p.color && !p.group && !p.title && !p.tagIds.length && !p.newTags.length && !out.some((x) => x.day === p.due)) {
       out.unshift({ label: longDay(p.due), kind: 'Day', run: () => openDay(p.due) });
     }
     if (query.trim().length >= 2) out.push(...findTasks(words));
-    if (p.title) out.push({ kind: 'Add task', add: p });
+    if (p.title && !p.errors.length) out.push({ kind: 'Add task', add: p });
     return out;
   });
 
@@ -129,14 +139,14 @@
     listEl?.children[sel]?.scrollIntoView({ block: 'nearest' });
   });
 
-  function complete(tag) {
-    query = query.replace(/tag:\S*$/i, `tag:${compactTag(tag.name)} `);
+  function complete(result) {
+    query = query.replace(result.pattern, () => result.completion);
     inputEl.focus();
   }
 
   function run(r) {
     if (!r) return;
-    if (r.complete) return complete(r.complete);
+    if (r.completion) return complete(r);
     close();
     if (r.add) return add(r.add);
     r.run();
@@ -144,11 +154,11 @@
 
   function add(p) {
     const column = currentBoard()?.columns[0];
-    if (!column) return;
+    if (!column || p.errors?.length || !p.title.trim()) return;
     const tagIds = [...p.tagIds, ...p.newTags.map((n) => addTag(n).id)];
     // With no date typed, a task added from a day board goes on that day.
     const due = p.due || (ui.view === 'calendar' && ui.dayBoard) || '';
-    addTask({ title: p.title, due, time: due ? p.time : '', columnId: column.id, tagIds });
+    addTask({ title: p.title, due, time: due ? p.time : '', columnId: column.id, tagIds, color: p.color, group: p.group });
     ui.toast = `Added “${p.title}”` + (due ? ` · ${dayLabel(due)}` : '') + (p.time ? ` ${fmtTime(p.time)}` : '');
   }
 
@@ -160,15 +170,10 @@
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const r = results[sel];
-      // Enter on a tag you've already typed in full adds the task instead of completing it again.
-      if (r?.complete && compactTag(r.complete.name).toLowerCase() === tagPart?.toLowerCase()) {
-        const task = parseTask(query, db.tags);
-        if (task.title) run({ add: task });
-        else complete(r.complete);
-      } else run(r);
-    } else if (e.key === 'Tab' && !e.shiftKey && results[sel]?.complete) {
+      run(r);
+    } else if (e.key === 'Tab' && !e.shiftKey && results[sel]?.completion) {
       e.preventDefault();
-      complete(results[sel].complete);
+      complete(results[sel]);
     } else if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
       e.preventDefault();
       if (n) sel = (sel + 1) % n;
@@ -192,7 +197,7 @@
       spellcheck="false"
       autocomplete="off"
       aria-label="Go to, find or add a task"
-      placeholder="Go to a day or page, find a task, or add one: do laundry thursday 4pm tag:personal" />
+      placeholder="Go to a day or page, find a task, or add one: do laundry tomorrow 4pm /tag personal /color blue" />
 
     {#if results.length}
       <div class="results" role="listbox" bind:this={listEl}>
@@ -208,6 +213,8 @@
               <span class="main">
                 <span class="title">{r.add.title}</span>
                 {#if r.add.due}<span class="chip">{dayLabel(r.add.due)}</span>{/if}
+                {#if r.add.group}<span class="chip">{r.add.group}</span>{/if}
+                {#if r.add.color}<span class="chip" style:--c={r.add.color}>{r.add.color}</span>{/if}
                 {#if r.add.time}<span class="chip">{fmtTime(r.add.time)}</span>{/if}
                 {#each r.add.tagIds as id (id)}
                   {@const t = tagById(id)}
@@ -216,7 +223,7 @@
                 {#each r.add.newTags as n (n)}<span class="chip new" title="A new tag will be made">+ {n}</span>{/each}
               </span>
             {:else if r.color}
-              <span class="main"><span class="chip" style:--c={r.color}>{r.complete ? r.label : r.label.replace(/^Show only /, '')}</span>{#if !r.complete}<span class="muted">only</span>{/if}</span>
+              <span class="main"><span class="chip" style:--c={r.color}>{r.completion ? r.label : r.label.replace(/^Show only /, '')}</span>{#if !r.completion}<span class="muted">only</span>{/if}</span>
             {:else}
               <span class="main" class:done={r.done}>{r.label}{#if r.hint}<span class="muted">{r.hint}</span>{/if}</span>
             {/if}
@@ -226,10 +233,11 @@
       </div>
     {/if}
 
+    {#if parsed.errors.length && !completions.length}<p class="error" role="status">{parsed.errors[0]}</p>{/if}
     <div class="keys muted">
-      <span><kbd>Enter</kbd> {results[sel]?.complete ? 'complete' : 'go'}</span>
-      <span><kbd>Tab</kbd> {tagSuggestions.length ? 'complete tag' : 'next'}</span>
-      <span><kbd>tag:</kbd> add a tag</span>
+      <span><kbd>Enter</kbd> {results[sel]?.completion ? 'complete' : results[sel]?.add ? 'add task' : 'go'}</span>
+      <span><kbd>Tab</kbd> {completions.length ? 'complete' : 'next'}</span>
+      <span><kbd>/</kbd> task options</span>
       <span><kbd>Esc</kbd> close</span>
     </div>
   </div>
@@ -257,6 +265,7 @@
   .main.done { text-decoration: line-through; color: var(--muted); }
   .kind { font-size: 12px; color: var(--muted); flex: none; }
   .chip.new { border-style: dashed; }
+  .error { padding: 10px 16px; color: var(--danger); }
   .keys { display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--border); font-size: 12px; flex-wrap: wrap; }
   kbd { font: inherit; font-size: 11px; padding: 0 5px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface-2); }
 </style>

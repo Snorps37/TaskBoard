@@ -1,3 +1,4 @@
+import { extractOptions, COLORS } from './slash.js';
 import { ymd, today, addDays, nowHM } from './db.svelte.js';
 
 // Reads a typed task like "do laundry thursday 4pm tag:personal" into its parts.
@@ -128,6 +129,33 @@ function matchTime(w, i, afterAt) {
 }
 
 export function parseTask(text, tags) {
+  const extracted = extractOptions(text);
+  const base = parsePlainTask(extracted.text, tags);
+  const errors = [...extracted.errors];
+  let color = '';
+  let group = '';
+  for (const { key, value } of extracted.options) {
+    if (key === 'tag') {
+      const tag = tags.find((t) => compactTag(t.name).toLowerCase() === compactTag(value).toLowerCase());
+      if (tag) { if (!base.tagIds.includes(tag.id)) base.tagIds.push(tag.id); }
+      else if (!base.newTags.some((t) => t.toLowerCase() === value.toLowerCase())) base.newTags.push(value);
+    } else if (key === 'color') {
+      const hex = COLORS[value.toLowerCase()] || value;
+      if (value.toLowerCase() === 'none') color = '';
+      else if (/^#[0-9a-f]{6}$/i.test(hex)) color = hex.toLowerCase();
+      else errors.push('Use a color name or #rrggbb.');
+    } else if (key === 'group') group = value;
+    else {
+      const parsed = parsePlainTask(value, []);
+      if (key === 'date' && parsed.due && !parsed.title && !parsed.time) base.due = parsed.due;
+      else if (key === 'time' && parsed.time && !parsed.title) { base.time = parsed.time; if (!base.due) base.due = parsed.due; }
+      else errors.push(`Invalid /${key}: ${value}`);
+    }
+  }
+  return { ...base, color, group, errors };
+}
+
+function parsePlainTask(text, tags) {
   const raw = text.trim().split(/\s+/).filter(Boolean);
   const words = raw.map((x) => x.toLowerCase().replace(/[,.]$/, ''));
   const keep = [];

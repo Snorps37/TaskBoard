@@ -13,9 +13,11 @@ Trello-style boards with a calendar built in. Click a day to see its to-do list,
 - **Groups**: give tasks the same group name (like "Vitamins") and they show as one card per day, with a check-all box and a fold-up arrow. Each task in it can still be checked or moved on its own.
 - **Themes**: pick a preset (Midnight, Nord, Dracula, Gruvbox, Catppuccin, Tokyo Night, and more, including light ones) or set your own four colors. Settings, then Preferences.
 - **Schoology import**: assignments from your Schoology calendar link (read-only, updates when teachers change dates).
-- **Command bar**: press Tab (or Ctrl+K) and type where to go ("thursday", "oct 25", "settings", "upcoming"), or type a task like `do laundry thursday 4pm tag:personal` and press Enter to add it. Tags autocomplete after `tag:`.
+- **Command bar**: press Tab (or Ctrl+K) and type where to go ("thursday", "oct 25", "settings", "upcoming"), or type a task like `do laundry tomorrow 4pm /tag personal /color blue` and press Enter to add it. Tags autocomplete after `tag:`.
 - **Reminders**: a desktop notification before each task that has a time (5 minutes to an hour ahead, or right at the time), plus an optional morning list of the day's tasks. Click one to jump to the task. On Windows the app keeps running in the tray when you close it, so reminders still arrive; you can also have it start when you sign in. All of this is in Preferences.
 - **Automatic updates**: the Windows installer and the Linux AppImage download new versions from GitHub in the background and install them when you restart.
+- **Undo and shortcuts**: Ctrl+Z undoes recent app data changes; Ctrl+Shift+Z or Ctrl+Y redoes them (Cmd on macOS). Text fields retain native text undo. Ctrl+Shift+T opens today, Ctrl+Shift+U opens Upcoming, and Ctrl+Shift+C opens Calendar. Tab and Ctrl+K still open the command bar.
+- **Daily rollover**: date-dependent views refresh at midnight and after wake/focus; an open board for today follows the new day.
 - **Mouse back button** steps back: closes a dialog, returns from a day's board to the calendar, and so on.
 
 ## Install
@@ -65,6 +67,7 @@ On Hyprland the launcher and dock match a window to its icon by window class. Ta
 | macOS | `~/Library/Application Support/taskboard/` |
 
 - `data.json` has your boards, tasks, tags, and repeating tasks.
+- `data.json.bak` keeps the previous valid save, updated on each desktop save after the first. This is one previous version, not a dated backup archive. To restore it, fully quit the app (including the tray), preserve a copy of `data.json`, then copy `data.json.bak` to `data.json` before reopening.
 - `settings.json` has your theme and sync settings, including your private Schoology calendar link. Don't share or commit it.
 
 To move to a new computer, copy that folder across.
@@ -90,3 +93,29 @@ The Release workflow builds the Windows and Linux apps and attaches them, along 
 - `src/lib/*.svelte` the screens: `Board`, `Calendar`, `DayPanel`, `TaskModal`, `SeriesManager`, `PreferencesModal`, and so on
 - `src/lib/theme.js` theme presets; `src/app.css` the derived color palette
 - `build/` app icon; `docs/` README screenshot; `scripts/` Linux launcher installer
+
+## Undo and verification
+
+Undo history keeps up to 50 recent data snapshots for the current session, including task edits, completion, moves, deletions, and schedule changes. It does not undo preferences or navigation, and clears when the app restarts. Background imports and generated recurring tasks can also appear in this history. Undo/redo outside text fields closes the task editor to safely restore its data.
+
+Run `node --test tests/*.test.cjs` for backup/history checks and `npm run build` for the production renderer build.
+
+## Quick-add slash options
+
+Press Tab or Ctrl/Cmd+K to open the command bar. Type `/` to browse options, use arrows to choose, and Tab or Enter to complete. After completing options, Enter adds the previewed task. Click a suggestion to complete it with the mouse.
+
+```text
+Study tomorrow 4pm /tag academics /color blue
+Take supplements /group "Morning routine" /date tomorrow /time 8am
+Review notes /date "in 3 days" /tag "School Work" /tag personal
+```
+
+- `/tag`: existing or new tag; repeat for multiple tags. Quote names containing spaces.
+- `/color`: blue, green, pink, yellow, red, purple, teal, indigo, a six-digit hex value, or none. Saved colors appear as suggestions.
+- `/group`: existing or new task group; quote multiword names.
+- `/date`: natural-language or explicit date; quote multiword dates such as "next week".
+- `/time`: explicit time such as 4pm, noon, or 16:30.
+
+Unrecognized options and invalid values show a message and block task creation until corrected. Existing `tag:personal` input remains supported. Ordinary dates and times still work without slash options.
+
+Preferences includes a shortcut reference. The toolbar wraps tags in smaller windows; Upcoming highlights Today, completed cards are quieter, task times have consistent badges, and overdue cards are labeled. Desktop update downloads now display progress before the restart prompt.

@@ -68,7 +68,15 @@ export const storage = window.api ?? {
 export const uid = () => Math.random().toString(36).slice(2, 10);
 export const ymd = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-export const today = () => ymd(new Date());
+export const clock = $state({ day: ymd(new Date()) });
+export const today = () => clock.day;
+export function refreshDay() {
+  const day = ymd(new Date());
+  if (day === clock.day) return false;
+  clock.day = day;
+  if (db.loaded) extendSeries(addDays(day, 60));
+  return true;
+}
 export const nowHM = () => {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;

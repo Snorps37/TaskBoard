@@ -152,6 +152,20 @@
       {/each}
     </div>
 
+    <details class="shortcuts">
+      <summary>Keyboard shortcuts and quick add</summary>
+      <dl>
+        <dt>Tab · Ctrl/Cmd+K</dt><dd>Go to a page, find or add a task</dd>
+        <dt>Ctrl/Cmd+Z</dt><dd>Undo (text undo while typing)</dd>
+        <dt>Ctrl/Cmd+Shift+Z · Ctrl/Cmd+Y</dt><dd>Redo</dd>
+        <dt>Ctrl/Cmd+Shift+T</dt><dd>Today's board</dd>
+        <dt>Ctrl/Cmd+Shift+U</dt><dd>Upcoming</dd>
+        <dt>Ctrl/Cmd+Shift+C</dt><dd>Calendar</dd>
+        <dt>Escape</dt><dd>Close a dialog or command bar</dd>
+      </dl>
+      <p class="muted">In quick add, type / for options. Use /tag personal, /color blue, /group "Study tasks", /date tomorrow or /time 4pm. Quote values containing spaces. Arrow keys choose suggestions; Tab or Enter completes; Enter adds the task after completing options.</p>
+    </details>
+
     <div class="field">
       <span class="label">When the app opens</span>
       <select bind:value={settings.startup} onchange={saveSettings}>
@@ -244,6 +258,10 @@
 </div>
 
 <style>
+  .shortcuts { padding: 12px; border: 1px solid var(--border); border-radius: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin: 12px 0; font-size: 12px; }
+  dd { color: var(--muted); }
   h3 { font-size: 17px; font-weight: 600; }
   .wide { width: min(640px, calc(100vw - 40px)); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }

@@ -79,6 +79,7 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <section
           class="group"
+          class:today={g.i === 0}
           class:over={ui.dragTaskId && overKey === g.date}
           ondragover={(e) => over(e, g.date)}
           ondrop={(e) => drop(e, g.date)}>
@@ -123,6 +124,7 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <section
           class="group"
+          class:today={g.i === 0}
           class:over={ui.dragTaskId && overKey === 'none'}
           ondragover={(e) => over(e, 'none')}
           ondrop={(e) => drop(e, '')}>
@@ -187,6 +189,9 @@
     border-radius: 14px;
     transition: border-color var(--fast), background var(--fast);
   }
+  .group.today { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+  .group.today h3 { color: var(--accent); font-size: 18px; }
+  .group.today > header { padding-bottom: 6px; }
   .group.over { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
   .group.overdue { border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
   .group.overdue h3 { color: var(--danger); }

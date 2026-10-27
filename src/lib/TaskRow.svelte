@@ -1,5 +1,5 @@
 <script>
-  import { db, ui, accentOf, tagById, setTaskDone, tagTask, fmtTime } from './db.svelte.js';
+  import { db, ui, accentOf, tagById, setTaskDone, tagTask, fmtTime, today } from './db.svelte.js';
   import { fly } from 'svelte/transition';
 
   let { t, showDate = false, compact = false } = $props();
@@ -10,6 +10,7 @@
     if (!ui.dragTagId) tagHover = false;
   });
 
+  const overdue = $derived(!t.done && !!t.due && t.due < today());
   const dateLabel = $derived(
     t.due ? new Date(t.due + 'T00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : ''
   );
@@ -36,6 +37,7 @@
   class="item"
   class:compact
   class:done={t.done}
+  class:overdue
   class:tag-target={tagHover}
   style:--c={accentOf(t) || 'var(--neutral)'}
   style:--tc={dragTag?.color ?? 'var(--accent)'}
@@ -62,6 +64,7 @@
     {#if t.time}<small class="time">{fmtTime(t.time)}</small>{/if}
     <span>{t.title || 'Untitled'}</span>
   </div>
+  {#if overdue}<small class="overdue-label">Overdue</small>{/if}
   {#if showDate && dateLabel}<small class="date">{dateLabel}</small>{/if}
   {#if t.tagIds.length}
     <span class="tags">
@@ -79,7 +82,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 9px 12px;
+    padding: 11px 12px;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-left: 3px solid var(--c);
@@ -94,7 +97,11 @@
   .item.tag-target { outline: 2px solid var(--tc, var(--accent)); outline-offset: 1px; }
   input[type='checkbox'] { margin-top: 0; }
   .title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; cursor: pointer; overflow-wrap: anywhere; }
-  .time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .time { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; padding: 2px 6px; border-radius: 5px; background: var(--surface-3); font-size: 11px; }
+  .item.done { background: var(--surface); border-left-color: var(--neutral); }
+  .item.done .tags, .item.done .time { opacity: 0.6; }
+  .overdue-label { color: var(--danger); font-size: 11px; white-space: nowrap; }
+  .item.overdue { border-top-color: color-mix(in srgb, var(--danger) 25%, var(--border)); }
   .item.done .title span { text-decoration: line-through; color: var(--muted); }
   .date { color: var(--muted); white-space: nowrap; }
   .tags { display: flex; flex-wrap: wrap; gap: 6px; }
